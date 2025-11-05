@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { RouterView, useRoute } from 'vue-router'
-import BaseLayout from './layouts/BaseLayout.vue'
+import { useRoute } from 'vue-router'
+import BaseLayout from '@/layouts/BaseLayout.vue'
 
 const route = useRoute()
 </script>
 
 <template>
   <component :is="route.path === '/login' ? 'div' : BaseLayout">
-    <RouterView />
+    <router-view />
   </component>
 </template>
 
 <style scoped>
-/* vazio */
+/* estilos específicos podem ser adicionados aqui caso necessário */
 </style>

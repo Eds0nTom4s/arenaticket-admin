@@ -33,7 +33,7 @@ npm install
 ```bash
 npm run dev
 ```
-A aplicação inicia em: http://localhost:5173 (ou porta próxima disponível)
+A aplicação inicia em: http://localhost:3000
 
 ## 🧱 Funcionalidades Iniciais
 - Login mock (sem backend)

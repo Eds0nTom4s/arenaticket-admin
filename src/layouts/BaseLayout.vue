@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/store/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -12,8 +12,8 @@ function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-background text-text-primary">
-    <aside class="fixed inset-y-0 left-0 w-64 bg-primary text-white hidden md:block">
+  <div class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <aside class="fixed inset-y-0 left-0 w-64 bg-[var(--color-primary)] text-white hidden md:block">
       <div class="p-4 text-lg font-semibold">ArenaTicket Admin</div>
       <nav class="px-2 space-y-1 text-sm">
         <RouterLink class="block px-3 py-2 hover:bg-white/10 rounded-lg" to="/dashboard">Dashboard</RouterLink>
@@ -33,7 +33,7 @@ function handleLogout() {
         </div>
       </header>
 
-      <main class="p-4 bg-background min-h-[calc(100vh-3.5rem)]">
+      <main class="p-4 min-h-[calc(100vh-3.5rem)]">
         <div class="max-w-7xl mx-auto">
           <slot />
         </div>

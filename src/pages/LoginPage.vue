@@ -28,11 +28,11 @@ async function submit() {
 </script>
 
 <template>
-  <div class="min-h-screen grid place-items-center bg-background p-4">
+  <div class="min-h-screen grid place-items-center bg-[var(--color-bg)] p-4">
     <div class="w-full max-w-sm bg-white border border-gray-200 rounded-xl p-6">
       <div class="text-center mb-6">
-        <div class="text-xl font-semibold text-text-primary">ArenaTicket Admin</div>
-        <p class="text-sm text-text-secondary">Acesse sua conta</p>
+        <div class="text-xl font-semibold text-[var(--color-text)]">ArenaTicket Admin</div>
+        <p class="text-sm text-[var(--color-text-secondary)]">Acesse sua conta</p>
       </div>
 
       <form class="space-y-3" @submit.prevent="submit">
