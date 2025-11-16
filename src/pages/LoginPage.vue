@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { useRoute, useRouter } from 'vue-router'
 
-const email = ref('')
-const password = ref('')
+const telefone = ref('')
+const senha = ref('')
 const loading = ref(false)
 const error = ref('')
 
@@ -16,11 +16,14 @@ async function submit() {
   loading.value = true
   error.value = ''
   try {
-    await auth.login(email.value, password.value)
+    console.log('Tentando login com:', { telefone: telefone.value })
+    await auth.login(telefone.value, senha.value)
+    console.log('Login bem-sucedido, redirecionando...')
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.replace(redirect)
-  } catch (e) {
-    error.value = 'Falha na autenticação'
+  } catch (e: any) {
+    console.error('Erro no login:', e)
+    error.value = e.message || 'Falha na autenticação'
   } finally {
     loading.value = false
   }
@@ -37,12 +40,12 @@ async function submit() {
 
       <form class="space-y-3" @submit.prevent="submit">
         <div>
-          <label class="block text-sm mb-1">Email</label>
-          <input v-model="email" type="email" class="input" placeholder="admin@arenaticket.com" required />
+          <label class="block text-sm mb-1">Telefone</label>
+          <input v-model="telefone" type="tel" class="input" placeholder="923456789" required />
         </div>
         <div>
           <label class="block text-sm mb-1">Senha</label>
-          <input v-model="password" type="password" class="input" placeholder="••••••••" required />
+          <input v-model="senha" type="password" class="input" placeholder="••••••••" required />
         </div>
         <button class="btn-primary w-full" :disabled="loading">
           {{ loading ? 'Entrando...' : 'Entrar' }}

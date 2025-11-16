@@ -3,7 +3,8 @@
 **Versão da API:** v1  
 **Base URL:** `http://localhost:8080/api/v1`  
 **Ambiente de Produção:** `https://api.arenaticket.gdse.ao/api/v1`  
-**Data:** 13/10/2025
+**Data:** 15/11/2025  
+**Última Atualização:** Upload de banners, eventos com dataEvento + duração
 
 ---
 
@@ -13,10 +14,11 @@
 2. [Autenticação](#autenticação)
 3. [Endpoints Públicos](#endpoints-públicos)
 4. [Endpoints Protegidos](#endpoints-protegidos)
-5. [Modelos de Dados](#modelos-de-dados)
-6. [Fluxos de Integração](#fluxos-de-integração)
-7. [Códigos de Erro](#códigos-de-erro)
-8. [Exemplos de Integração](#exemplos-de-integração)
+5. [Upload de Arquivos](#upload-de-arquivos)
+6. [Modelos de Dados](#modelos-de-dados)
+7. [Fluxos de Integração](#fluxos-de-integração)
+8. [Códigos de Erro](#códigos-de-erro)
+9. [Exemplos de Integração](#exemplos-de-integração)
 
 ---
 
@@ -107,9 +109,10 @@ GET /api/v1/public/eventos?abertoParaVenda=true&page=0&size=10
     "titulo": "GDSE vs Kabuscorp",
     "descricao": "Jogo da 5ª jornada do Girabola 2025",
     "local": "Estádio dos Diamantes",
-    "dataInicio": "2025-10-18T16:00:00+01:00",
-    "dataFim": "2025-10-18T18:00:00+01:00",
-    "bannerUrl": "https://cdn.arenaticket.ao/banners/gdse-vs-kabuscorp.jpg",
+    "dataEvento": "2025-10-18T16:00:00+01:00",
+    "duracaoMinutos": 90,
+    "dataFim": "2025-10-18T17:30:00+01:00",
+    "bannerUrl": "http://localhost:8080/uploads/banners/gdse-vs-kabuscorp.jpg",
     "abertoParaVenda": true,
     "createdAt": "2025-10-13T10:30:00+01:00"
   },
@@ -118,9 +121,10 @@ GET /api/v1/public/eventos?abertoParaVenda=true&page=0&size=10
     "titulo": "GDSE vs Petro de Luanda",
     "descricao": "Clássico da Zona Norte",
     "local": "Estádio dos Diamantes",
-    "dataInicio": "2025-10-28T16:00:00+01:00",
-    "dataFim": "2025-10-28T18:00:00+01:00",
-    "bannerUrl": "https://cdn.arenaticket.ao/banners/gdse-vs-petro.jpg",
+    "dataEvento": "2025-10-28T16:00:00+01:00",
+    "duracaoMinutos": 90,
+    "dataFim": "2025-10-28T17:30:00+01:00",
+    "bannerUrl": "http://localhost:8080/uploads/banners/gdse-vs-petro.jpg",
     "abertoParaVenda": true,
     "createdAt": "2025-10-13T10:30:00+01:00"
   }
@@ -145,15 +149,16 @@ GET /api/v1/public/eventos/550e8400-e29b-41d4-a716-446655440000
   "titulo": "GDSE vs Kabuscorp",
   "descricao": "Jogo da 5ª jornada do Girabola 2025",
   "local": "Estádio dos Diamantes",
-  "dataInicio": "2025-10-18T16:00:00+01:00",
-  "dataFim": "2025-10-18T18:00:00+01:00",
-  "bannerUrl": "https://cdn.arenaticket.ao/banners/gdse-vs-kabuscorp.jpg",
+  "dataEvento": "2025-10-18T16:00:00+01:00",
+  "duracaoMinutos": 90,
+  "dataFim": "2025-10-18T17:30:00+01:00",
+  "bannerUrl": "http://localhost:8080/uploads/banners/gdse-vs-kabuscorp.jpg",
   "abertoParaVenda": true,
   "lotes": [
     {
       "id": "lote-uuid-1",
       "nome": "Arquibancada",
-      "preco": 1500.00,
+      "preco": 10.00,
       "quantidadeTotal": 300,
       "quantidadeDisponivel": 285,
       "inicioVenda": "2025-10-13T00:00:00+01:00",
@@ -162,7 +167,7 @@ GET /api/v1/public/eventos/550e8400-e29b-41d4-a716-446655440000
     {
       "id": "lote-uuid-2",
       "nome": "Central",
-      "preco": 3000.00,
+      "preco": 30.00,
       "quantidadeTotal": 150,
       "quantidadeDisponivel": 142,
       "inicioVenda": "2025-10-13T00:00:00+01:00",
@@ -171,7 +176,7 @@ GET /api/v1/public/eventos/550e8400-e29b-41d4-a716-446655440000
     {
       "id": "lote-uuid-3",
       "nome": "Camarote VIP",
-      "preco": 7000.00,
+      "preco": 70.00,
       "quantidadeTotal": 50,
       "quantidadeDisponivel": 48,
       "inicioVenda": "2025-10-13T00:00:00+01:00",
@@ -200,8 +205,8 @@ GET /api/v1/public/lotes/lote-uuid-1/disponibilidade?quantidade=5
   "disponivel": true,
   "quantidadeDisponivel": 285,
   "quantidadeSolicitada": 5,
-  "preco": 1500.00,
-  "total": 7500.00
+  "preco": 10.00,
+  "total": 50.00
 }
 ```
 
@@ -250,7 +255,7 @@ GET /api/v1/public/lotes/lote-uuid-1/disponibilidade?quantidade=5
   "pedidoId": "pedido-uuid-123",
   "clientRequestId": "ARENATICKET-20251013-001",
   "status": "PENDING",
-  "total": 3000.00,
+  "total": 20.00,
   "pagamento": {
     "provider": "APPYPAY",
     "paymentId": "APPY-20251013-001",
@@ -258,7 +263,7 @@ GET /api/v1/public/lotes/lote-uuid-1/disponibilidade?quantidade=5
     "referencia": "REF-123456789",
     "entidade": "12345",
     "status": "PENDING",
-    "deepLink": "gpo://payment?ref=REF-123456789&amount=3000.00",
+    "deepLink": "gpo://payment?ref=REF-123456789&amount=20.00",
     "qrCode": "data:image/png;base64,iVBORw0KG..."
   },
   "expiresAt": "2025-10-13T15:45:00+01:00",
@@ -287,12 +292,12 @@ GET /api/v1/public/pedidos/pedido-uuid-123
 {
   "pedidoId": "pedido-uuid-123",
   "status": "PENDING",
-  "total": 3000.00,
+  "total": 20.00,
   "pagamento": {
     "status": "PENDING",
     "metodoPagamento": "GPO",
     "referencia": "REF-123456789",
-    "deepLink": "gpo://payment?ref=REF-123456789&amount=3000.00"
+    "deepLink": "gpo://payment?ref=REF-123456789&amount=20.00"
   },
   "expiresAt": "2025-10-13T15:45:00+01:00",
   "createdAt": "2025-10-13T15:30:00+01:00"
@@ -304,11 +309,12 @@ GET /api/v1/public/pedidos/pedido-uuid-123
 {
   "pedidoId": "pedido-uuid-123",
   "status": "PAID",
-  "total": 3000.00,
+  "total": 20.00,
   "pagamento": {
     "status": "PAID",
     "metodoPagamento": "GPO",
     "referencia": "REF-123456789",
+    "entidade": "12345",
     "paidAt": "2025-10-13T15:35:00+01:00"
   },
   "bilhetes": [
@@ -429,12 +435,21 @@ GET /api/v1/public/health
   "titulo": "GDSE vs 1º de Agosto",
   "descricao": "Final do Campeonato Nacional",
   "local": "Estádio 11 de Novembro",
-  "dataInicio": "2025-11-15T16:00:00+01:00",
-  "dataFim": "2025-11-15T18:00:00+01:00",
-  "bannerUrl": "https://cdn.arenaticket.ao/banners/final.jpg",
+  "dataEvento": "2025-11-15T16:00:00+01:00",
+  "duracaoMinutos": 90,
+  "bannerUrl": "http://localhost:8080/uploads/banners/final.jpg",
   "abertoParaVenda": true
 }
 ```
+
+**Campos:**
+- `titulo` (obrigatório): Título do evento
+- `descricao` (opcional): Descrição detalhada
+- `local` (obrigatório): Local do evento
+- `dataEvento` (obrigatório): Data/hora de início do evento (ISO 8601)
+- `duracaoMinutos` (opcional, default=90): Duração do evento em minutos
+- `bannerUrl` (opcional): URL da imagem do banner (usar endpoint de upload)
+- `abertoParaVenda` (opcional, default=true): Se está aberto para vendas
 
 **Response (201 Created):**
 ```json
@@ -443,9 +458,10 @@ GET /api/v1/public/health
   "titulo": "GDSE vs 1º de Agosto",
   "descricao": "Final do Campeonato Nacional",
   "local": "Estádio 11 de Novembro",
-  "dataInicio": "2025-11-15T16:00:00+01:00",
-  "dataFim": "2025-11-15T18:00:00+01:00",
-  "bannerUrl": "https://cdn.arenaticket.ao/banners/final.jpg",
+  "dataEvento": "2025-11-15T16:00:00+01:00",
+  "duracaoMinutos": 90,
+  "dataFim": "2025-11-15T17:30:00+01:00",
+  "bannerUrl": "http://localhost:8080/uploads/banners/final.jpg",
   "abertoParaVenda": true,
   "createdAt": "2025-10-13T15:45:00+01:00"
 }
@@ -462,7 +478,7 @@ GET /api/v1/public/health
 ```json
 {
   "nome": "Tribuna Especial",
-  "preco": 5000.00,
+  "preco": 50.00,
   "quantidadeTotal": 200,
   "inicioVenda": "2025-10-15T00:00:00+01:00",
   "fimVenda": "2025-11-15T14:00:00+01:00"
@@ -475,7 +491,7 @@ GET /api/v1/public/health
   "id": "novo-lote-uuid",
   "eventoId": "novo-evento-uuid",
   "nome": "Tribuna Especial",
-  "preco": 5000.00,
+  "preco": 50.00,
   "quantidadeTotal": 200,
   "quantidadeReservada": 0,
   "quantidadeVendida": 0,
@@ -513,7 +529,7 @@ GET /api/v1/admin/pedidos?status=PAID&page=0&size=10
       "pedidoId": "pedido-uuid-123",
       "clientRequestId": "ARENATICKET-20251013-001",
       "status": "PAID",
-      "total": 3000.00,
+      "total": 20.00,
       "compradorNome": "João Manuel Silva",
       "compradorTelefone": "923456789",
       "evento": "GDSE vs Kabuscorp",
@@ -565,10 +581,10 @@ GET /api/v1/admin/relatorios/vendas?eventoId=550e8400-e29b-41d4-a716-44665544000
     "pedidosPendentes": 5,
     "pedidosCancelados": 2,
     "totalBilhetes": 276,
-    "receitaTotal": 414000.00,
+    "receitaTotal": 2760.00,
     "receitaPorMetodo": {
-      "GPO": 372600.00,
-      "REFERENCIA": 41400.00
+      "GPO": 2484.00,
+      "REFERENCIA": 276.00
     }
   },
   "porLote": [
@@ -576,19 +592,19 @@ GET /api/v1/admin/relatorios/vendas?eventoId=550e8400-e29b-41d4-a716-44665544000
       "loteId": "lote-uuid-1",
       "nome": "Arquibancada",
       "quantidadeVendida": 180,
-      "receita": 270000.00
+      "receita": 1800.00
     },
     {
       "loteId": "lote-uuid-2",
       "nome": "Central",
       "quantidadeVendida": 76,
-      "receita": 228000.00
+      "receita": 2280.00
     },
     {
       "loteId": "lote-uuid-3",
       "nome": "Camarote VIP",
       "quantidadeVendida": 20,
-      "receita": 140000.00
+      "receita": 1400.00
     }
   ],
   "geradoEm": "2025-10-13T16:00:00+01:00"
@@ -624,7 +640,135 @@ GET /api/v1/admin/relatorios/vendas?eventoId=550e8400-e29b-41d4-a716-44665544000
 
 ---
 
-## 📊 Modelos de Dados
+## � Upload de Arquivos
+
+### Upload de Banner de Evento
+
+**Endpoint:** `POST /admin/upload/banner`  
+**Autenticação:** Bearer Token (ADMIN)  
+**Content-Type:** `multipart/form-data`
+
+**Request:**
+```http
+POST /api/v1/admin/upload/banner
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+file: [arquivo de imagem]
+```
+
+**Validações:**
+- Extensões permitidas: jpg, jpeg, png, gif, webp, svg
+- Tamanho máximo: 5 MB
+- O arquivo é salvo com nome único (UUID) no servidor
+- Retorna URL pública acessível via `/uploads/banners/{filename}`
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "url": "http://localhost:8080/uploads/banners/a3f8d9e2-4b5c-4d3e-8f7a-9b1c2d3e4f5g.jpg",
+  "filename": "evento-final-2025.jpg",
+  "size": 245678,
+  "message": "Upload realizado com sucesso"
+}
+```
+
+**Response (400 Bad Request) - Arquivo Inválido:**
+```json
+{
+  "success": false,
+  "filename": "documento.pdf",
+  "message": "Tipo de arquivo não permitido. Extensões aceitas: jpg, jpeg, png, gif, webp, svg"
+}
+```
+
+**Response (400 Bad Request) - Arquivo Muito Grande:**
+```json
+{
+  "success": false,
+  "filename": "imagem-enorme.jpg",
+  "size": 8388608,
+  "message": "Arquivo excede o tamanho máximo de 5 MB"
+}
+```
+
+### Deletar Banner
+
+**Endpoint:** `DELETE /admin/upload/banner`  
+**Autenticação:** Bearer Token (ADMIN)
+
+**Request:**
+```http
+DELETE /api/v1/admin/upload/banner?url=http://localhost:8080/uploads/banners/a3f8d9e2.jpg
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "url": "http://localhost:8080/uploads/banners/a3f8d9e2.jpg",
+  "message": "Arquivo deletado com sucesso"
+}
+```
+
+### Informações de Upload
+
+**Endpoint:** `GET /admin/upload/info`  
+**Autenticação:** Bearer Token (ADMIN)
+
+**Response (200 OK):**
+```json
+{
+  "maxFileSize": 5242880,
+  "maxFileSizeMB": 5,
+  "allowedExtensions": ["jpg", "jpeg", "png", "gif", "webp", "svg"]
+}
+```
+
+### Fluxo de Upload (Frontend)
+
+```typescript
+// Exemplo de upload de banner
+async function uploadBanner(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/v1/admin/upload/banner', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message);
+  }
+
+  const result = await response.json();
+  return result.url; // URL pública do banner
+}
+
+// Uso ao criar evento
+const bannerFile = document.querySelector('input[type="file"]').files[0];
+const bannerUrl = await uploadBanner(bannerFile);
+
+// Criar evento com o banner
+await api.criarEvento({
+  titulo: "GDSE vs Kabuscorp",
+  local: "Estádio dos Diamantes",
+  dataEvento: "2025-10-18T16:00:00+01:00",
+  duracaoMinutos: 90,
+  bannerUrl: bannerUrl, // URL retornada do upload
+  abertoParaVenda: true
+});
+```
+
+---
+
+## �📊 Modelos de Dados
 
 ### Evento
 ```typescript
@@ -633,9 +777,10 @@ interface Evento {
   titulo: string;
   descricao: string;
   local: string;
-  dataInicio: string; // ISO 8601
-  dataFim: string; // ISO 8601
-  bannerUrl?: string;
+  dataEvento: string; // ISO 8601 - data/hora de início
+  duracaoMinutos: number; // Duração em minutos (default: 90)
+  dataFim: string; // ISO 8601 - calculado automaticamente (dataEvento + duracaoMinutos)
+  bannerUrl?: string; // URL pública do banner (ex: http://localhost:8080/uploads/banners/xyz.jpg)
   abertoParaVenda: boolean;
   createdAt: string; // ISO 8601
   updatedAt?: string; // ISO 8601
@@ -1236,4 +1381,15 @@ Se você precisar receber notificações de pagamento no seu backend:
 
 **Desenvolvido para:** GDSE - Grémio Desportivo Sagrada Esperança  
 **Versão:** 1.0.0  
-**Última Atualização:** 13/10/2025
+**Última Atualização:** 15/11/2025
+
+---
+
+## 📝 Changelog
+
+### v1.1.0 (15/11/2025)
+- ✨ **Upload de Banners**: Implementado endpoint para upload de imagens de eventos
+- 🔄 **Eventos Simplificados**: Eventos agora usam `dataEvento` + `duracaoMinutos` ao invés de `dataInicio`/`dataFim`
+- 💰 **Preços Atualizados**: Preços de exemplo ajustados para valores reais (10, 30, 70 Kz)
+- 🔧 **Campo Entidade**: Adicionado campo `entidade` nas respostas de pagamento REF
+- 📱 **SMS Melhorado**: Templates de SMS incluem entidade de pagamento
