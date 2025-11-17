@@ -35,18 +35,24 @@ export type LoteUpdate = Partial<LoteCreate>
 
 export interface Pedido {
   id: string
-  clientRequestId: string
-  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED'
-  total: number
   compradorNome: string
-  compradorTelefone: string
   compradorEmail?: string
-  numeroSocio?: string
+  compradorTelefone: string
+  eventoId: string
+  eventoTitulo?: string
+  loteId: string
+  loteNome?: string
+  quantidade: number
+  valorUnitario?: number
+  valorTotal: number // Backend retorna "valorTotal" não "total"
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED'
+  paymentId?: string
+  metodoPagamento?: string
   createdAt: string
+  updatedAt?: string
   paidAt?: string
-  expiresAt: string
-  evento?: string
-  quantidade?: number
+  bilhetes?: Bilhete[]
+  clientRequestId?: string
 }
 
 export interface Bilhete {

@@ -1,16 +1,27 @@
 import { defineStore } from 'pinia'
 import { api } from '@/utils/api'
-import type { Pedido } from '@/types/evento'
+
+export interface LogAuditoria {
+  id: string
+  usuario: string
+  usuarioId: string
+  acao: string
+  entidade: string
+  entidadeId: string
+  detalhes: string
+  ipAddress: string
+  timestamp: string
+}
 
 interface State {
-  itens: Pedido[]
+  itens: LogAuditoria[]
   loading: boolean
   error: string | null
   totalPages: number
   totalElements: number
 }
 
-export const usePedidosStore = defineStore('pedidos', {
+export const useAuditoriaStore = defineStore('auditoria', {
   state: (): State => ({
     itens: [],
     loading: false,
@@ -20,7 +31,9 @@ export const usePedidosStore = defineStore('pedidos', {
   }),
   actions: {
     async listar(params?: {
-      status?: string
+      usuario?: string
+      acao?: string
+      entidade?: string
       dataInicio?: string
       dataFim?: string
       page?: number
@@ -30,13 +43,15 @@ export const usePedidosStore = defineStore('pedidos', {
       this.error = null
       try {
         const query = new URLSearchParams()
-        if (params?.status) query.append('status', params.status)
+        if (params?.usuario) query.append('usuario', params.usuario)
+        if (params?.acao) query.append('acao', params.acao)
+        if (params?.entidade) query.append('entidade', params.entidade)
         if (params?.dataInicio) query.append('dataInicio', params.dataInicio)
         if (params?.dataFim) query.append('dataFim', params.dataFim)
         if (params?.page !== undefined) query.append('page', String(params.page))
         if (params?.size !== undefined) query.append('size', String(params.size))
 
-        const response = await api<any>(`/admin/pedidos?${query.toString()}`)
+        const response = await api<any>(`/admin/auditoria?${query.toString()}`)
         
         if (response.content) {
           this.itens = response.content
@@ -46,36 +61,10 @@ export const usePedidosStore = defineStore('pedidos', {
           this.itens = response
         }
       } catch (e: any) {
-        this.error = e.message || 'Erro ao carregar pedidos'
+        this.error = e.message || 'Erro ao carregar logs de auditoria'
       } finally {
         this.loading = false
       }
-    },
-    
-    async buscarPorId(pedidoId: string) {
-      const pedido = await api<Pedido>(`/admin/pedidos/${pedidoId}`)
-      return pedido
-    },
-    
-    async cancelar(pedidoId: string) {
-      const pedidoCancelado = await api<Pedido>(`/admin/pedidos/${pedidoId}/cancelar`, {
-        method: 'PATCH',
-      })
-      
-      // Atualizar o pedido na lista local
-      const idx = this.itens.findIndex((p) => p.id === pedidoId)
-      if (idx >= 0) {
-        this.itens[idx] = pedidoCancelado
-      }
-      
-      return pedidoCancelado
-    },
-    
-    async reenviarCodigos(pedidoId: string) {
-      const response = await api<{ success: boolean; message: string }>(`/admin/pedidos/${pedidoId}/reenviar-codigos`, {
-        method: 'POST',
-      })
-      return response
     },
   },
 })
