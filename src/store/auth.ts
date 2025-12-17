@@ -21,7 +21,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!user.value && !!token.value)
   const userName = computed(() => user.value?.nome ?? 'Administrador')
+  const userRole = computed(() => user.value?.role ?? 'ADMIN')
   const authHeader = computed(() => (token.value ? { Authorization: `Bearer ${token.value}` } : {}))
+
+  // Funções de verificação de permissão
+  const isAdmin = computed(() => userRole.value === 'ADMIN')
+  const isPorteiro = computed(() => userRole.value === 'PORTEIRO')
+  const isVendedor = computed(() => userRole.value === 'VENDEDOR')
+  const canAccessRoute = (allowedRoles: string[]) => {
+    if (!user.value) return false
+    return allowedRoles.includes(user.value.role)
+  }
 
   async function login(telefone: string, senha: string) {
     const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
@@ -82,5 +92,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, isAuthenticated, userName, authHeader, login, logout, loadFromStorage }
+  return { user, token, isAuthenticated, userName, userRole, authHeader, isAdmin, isPorteiro, isVendedor, canAccessRoute, login, logout, loadFromStorage }
 })

@@ -1,0 +1,498 @@
+<template>
+  <div class="space-y-4 sm:space-y-6">
+    <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold">Interface do Porteiro</h1>
+        <p class="text-xs sm:text-sm text-gray-600">Validação rápida de bilhetes na entrada</p>
+      </div>
+      <button @click="limpar" class="btn-secondary w-full sm:w-auto" v-if="bilhete || error">Limpar</button>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6">
+      <!-- Área de validação -->
+      <div class="md:col-span-7 space-y-4">
+        <div class="card space-y-4">
+          <label class="text-xs font-medium text-gray-600">Código do Bilhete</label>
+          <input ref="inputRef" v-model="codigo" type="text" placeholder="Escaneie ou digite o código" class="input text-base sm:text-lg font-mono tracking-wide" @keyup.enter="validar" />
+          <div class="flex flex-col sm:flex-row gap-3">
+            <button @click="validar" :disabled="loading || !codigo" class="btn-primary flex-1">
+              <span v-if="!loading">Consultar Bilhete</span>
+              <span v-else>Consultando...</span>
+            </button>
+          </div>
+          <div class="text-xs text-gray-500">Formato aceito: código completo ou compacto.</div>
+
+          <!-- Tratamento de erro com destaque para "já utilizado" -->
+          <div v-if="error" :class="error.toLowerCase().includes('já utilizado') ? 'bg-yellow-50 border-2 border-yellow-400 text-yellow-800' : 'bg-red-50 text-red-700'" class="p-3 sm:p-4 rounded text-xs sm:text-sm font-medium">
+            <div class="flex items-start gap-2">
+              <span class="text-lg">{{ error.toLowerCase().includes('já utilizado') ? '⚠️' : '❌' }}</span>
+              <div>
+                <div class="font-bold mb-1">{{ error.toLowerCase().includes('já utilizado') ? 'Bilhete Já Utilizado' : 'Erro de Validação' }}</div>
+                <div>{{ error }}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="bilhete && bilhete.status === 'VALID'" class="p-3 rounded bg-green-50 text-green-700 text-xs sm:text-sm font-medium flex items-center gap-2">
+            ✅ Bilhete válido - pronto para confirmar.
+          </div>
+          <div v-if="bilhete && bilhete.status === 'USED'" class="p-3 rounded bg-blue-50 text-blue-700 text-xs sm:text-sm">⚠️ Já utilizado em {{ formatDate(bilhete.utilizadoEm) }}</div>
+          <div v-if="bilhete && bilhete.status === 'CANCELLED'" class="p-3 rounded bg-red-100 text-red-700 text-xs sm:text-sm">❌ Cancelado</div>
+          <div v-if="bilhete && bilhete.status === 'EXPIRED'" class="p-3 rounded bg-gray-100 text-gray-700 text-xs sm:text-sm">⏱ Expirado</div>
+        </div>
+
+        <!-- Scanner de QR Code -->
+        <div class="card space-y-3">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <h2 class="text-base sm:text-lg font-semibold">Scanner de QR Code</h2>
+            <button @click="toggleScanner" :class="scannerAtivo ? 'btn-danger' : 'btn-primary'" class="w-full sm:w-auto">
+              {{ scannerAtivo ? 'Parar Scanner' : 'Iniciar Scanner' }}
+            </button>
+          </div>
+          <div 
+            v-show="scannerAtivo" 
+            id="qr-reader" 
+            class="w-full min-h-[300px] rounded overflow-hidden border-2 border-gray-300 bg-black"
+            style="position: relative; width: 100%;"
+          ></div>
+          <div v-if="scannerError" class="p-3 rounded bg-red-50 text-red-700 text-xs sm:text-sm">
+            <strong>⚠️ Erro:</strong> {{ scannerError }}
+            <div class="mt-2 text-[10px]">
+              Dica: Certifique-se de que permitiu acesso à câmera nas configurações do navegador.
+              <br>Chrome: Configurações → Site settings → Câmera → Permitir
+            </div>
+          </div>
+          <div v-if="scannerAtivo" class="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+            📷 Aponte a câmera para o QR Code do bilhete. A detecção é automática.
+          </div>
+        </div>
+
+        <!-- Detalhes -->
+        <div v-if="bilhete" class="card space-y-3">
+          <h2 class="text-base sm:text-lg font-semibold">Detalhes</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <div class="text-xs text-gray-500">Código</div>
+              <div class="font-mono font-semibold text-xs sm:text-sm">{{ bilhete.codigoTicketCompact }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Status</div>
+              <div :class="statusClass(bilhete.status)" class="px-2 py-1 rounded text-xs font-semibold inline-block">{{ statusLabel(bilhete.status) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Comprador</div>
+              <div class="font-medium text-xs sm:text-sm">{{ bilhete.compradorNome }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Telefone</div>
+              <div class="text-xs sm:text-sm">{{ bilhete.compradorTelefone }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Vendido Em</div>
+              <div class="text-xs sm:text-sm">{{ formatDate(bilhete.vendidoEm) }}</div>
+            </div>
+            <div v-if="bilhete.utilizadoEm">
+              <div class="text-xs text-gray-500">Utilizado Em</div>
+              <div class="text-xs sm:text-sm">{{ formatDate(bilhete.utilizadoEm) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Últimos Check-ins -->
+      <div class="md:col-span-5 space-y-4">
+        <div class="card">
+          <h2 class="text-base sm:text-lg font-semibold mb-3">Últimos Check-ins</h2>
+          <div v-if="ultimos.length === 0" class="text-xs text-gray-500">Nenhum ainda.</div>
+          <div v-else class="space-y-2">
+            <div v-for="b in ultimos" :key="b.id" class="border rounded p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-2">
+              <div>
+                <div class="font-mono text-xs font-semibold">{{ b.codigoTicketCompact }}</div>
+                <div class="text-[10px] text-gray-500">{{ formatDate(b.utilizadoEm || b.vendidoEm) }}</div>
+              </div>
+              <div :class="statusClass(b.status)" class="px-2 py-1 rounded text-[10px] font-semibold">{{ statusLabel(b.status) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Confirmação de Check-In -->
+    <div v-if="mostrarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="cancelarCheckIn">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar Check-In</h3>
+            <p class="text-sm text-gray-600 mb-4">Deseja realmente confirmar a entrada deste bilhete?</p>
+            
+            <div v-if="bilhete" class="bg-gray-50 rounded p-3 space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500">Código:</span>
+                <span class="font-mono font-semibold">{{ bilhete.codigoTicketCompact }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Comprador:</span>
+                <span class="font-medium">{{ bilhete.compradorNome }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Telefone:</span>
+                <span>{{ bilhete.compradorTelefone }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button @click="cancelarCheckIn" :disabled="confirmando" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium">
+            Cancelar
+          </button>
+          <button @click="confirmarCheckIn" :disabled="confirmando" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+            <span v-if="!confirmando">✓ Confirmar Entrada</span>
+            <span v-else>Confirmando...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useCheckInStore } from '@/store/checkin'
+import type { Bilhete } from '@/types/evento'
+import { Html5Qrcode } from 'html5-qrcode'
+
+const store = useCheckInStore()
+const codigo = ref('')
+const bilhete = ref<Bilhete | null>(null)
+const loading = ref(false)
+const confirmando = ref(false)
+const error = ref<string | null>(null)
+const inputRef = ref<HTMLInputElement | null>(null)
+const mostrarModal = ref(false)
+
+const ultimos = store.ultimosCheckIns
+
+// Scanner QR
+const scannerAtivo = ref(false)
+const scannerError = ref<string | null>(null)
+let html5QrCode: Html5Qrcode | null = null
+
+onMounted(() => {
+  inputRef.value?.focus()
+})
+
+onBeforeUnmount(() => {
+  if (html5QrCode && scannerAtivo.value) {
+    html5QrCode.stop().catch(console.error)
+  }
+})
+
+async function toggleScanner() {
+  if (scannerAtivo.value) {
+    await pararScanner()
+  } else {
+    await iniciarScanner()
+  }
+}
+
+async function iniciarScanner() {
+  scannerError.value = null
+  try {
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode('qr-reader', {
+        verbose: true, // Ativar logs para debug
+        formatsToSupport: undefined
+      })
+    }
+    
+    // Configuração otimizada para Android com renderização de vídeo
+    const config = {
+      fps: 10,
+      qrbox: function(viewfinderWidth: number, viewfinderHeight: number) {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
+        const qrboxSize = Math.floor(minEdge * 0.6)
+        return {
+          width: qrboxSize,
+          height: qrboxSize
+        }
+      },
+      aspectRatio: 1.0,
+      disableFlip: false,
+      videoConstraints: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    }
+    
+    const onScanSuccess = (decodedText: string) => {
+      console.log('QR Code detectado (bruto):', decodedText)
+      
+      // Extrair código do bilhete da URL ou usar o texto direto
+      const codigoExtraido = extrairCodigoDoBilhete(decodedText)
+      console.log('Código extraído:', codigoExtraido)
+      
+      codigo.value = codigoExtraido
+      validar()
+      pararScanner()
+    }
+    
+    const onScanFailure = (_error: string) => {
+      // Silenciar erros de scan (normal quando não há QR no frame)
+      // console.log('Scan error:', _error)
+    }
+    
+    // Tentar obter lista de câmeras
+    try {
+      const devices = await Html5Qrcode.getCameras()
+      console.log('Câmeras disponíveis:', devices)
+      
+      if (devices && devices.length > 0) {
+        // Preferir câmera traseira
+        const rearCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('traseira') ||
+          device.label.toLowerCase().includes('environment')
+        )
+        
+        const cameraId = rearCamera ? rearCamera.id : devices[devices.length - 1]?.id
+        
+        console.log('Usando câmera:', rearCamera?.label || devices[devices.length - 1]?.label)
+        
+        // Iniciar com ID específico da câmera
+        if (cameraId) {
+          await html5QrCode.start(
+            cameraId,
+            config,
+            onScanSuccess,
+            onScanFailure
+          )
+        } else {
+          throw new Error('Nenhuma câmera com ID disponível')
+        }
+      } else {
+        // Fallback: usar constraints de facingMode
+        console.log('Usando facingMode: environment')
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          onScanSuccess,
+          onScanFailure
+        )
+      }
+    } catch (err) {
+      console.warn('Erro ao listar câmeras, tentando facingMode:', err)
+      try {
+        await html5QrCode.start(
+          { facingMode: { exact: 'environment' } },
+          config,
+          onScanSuccess,
+          onScanFailure
+        )
+      } catch (err2) {
+        console.warn('Câmera traseira não disponível, tentando frontal:', err2)
+        await html5QrCode.start(
+          { facingMode: 'user' },
+          config,
+          onScanSuccess,
+          onScanFailure
+        )
+      }
+    }
+    
+    scannerAtivo.value = true
+    console.log('Scanner iniciado com sucesso')
+  } catch (err: any) {
+    scannerError.value = 'Erro ao acessar câmera. Verifique as permissões no navegador.'
+    console.error('Erro scanner:', err)
+    scannerAtivo.value = false
+  }
+}
+
+async function pararScanner() {
+  if (html5QrCode && scannerAtivo.value) {
+    try {
+      await html5QrCode.stop()
+      scannerAtivo.value = false
+    } catch (err) {
+      console.error('Erro ao parar scanner:', err)
+    }
+  }
+}
+
+/**
+ * Extrai o código do bilhete de uma URL ou retorna o texto original
+ * Exemplos:
+ * - https://arenaticket.gdse.ao/bilhete/GDSE76833507 → GDSE76833507
+ * - http://localhost:3000/bilhete/ABC123XYZ → ABC123XYZ
+ * - GDSE76833507 → GDSE76833507 (já é código)
+ */
+function extrairCodigoDoBilhete(texto: string): string {
+  const textoTrimmed = texto.trim()
+  
+  // Tentar extrair de URL
+  try {
+    // Padrão: /bilhete/CODIGO ou /bilhetes/CODIGO
+    const match = textoTrimmed.match(/\/bilhetes?\/([A-Z0-9]+)/i)
+    if (match && match[1]) {
+      return match[1].toUpperCase()
+    }
+    
+    // Tentar parsear como URL completa
+    const url = new URL(textoTrimmed)
+    const pathParts = url.pathname.split('/').filter(p => p.length > 0)
+    
+    // Se o último segmento parecer um código (letras e números)
+    const ultimoSegmento = pathParts[pathParts.length - 1]
+    if (ultimoSegmento && /^[A-Z0-9]+$/i.test(ultimoSegmento)) {
+      return ultimoSegmento.toUpperCase()
+    }
+  } catch (e) {
+    // Não é uma URL válida, continuar
+  }
+  
+  // Se não conseguiu extrair de URL, retornar texto original (já é um código)
+  return textoTrimmed.toUpperCase()
+}
+
+async function validar() {
+  if (!codigo.value.trim()) return
+  loading.value = true
+  error.value = null
+  bilhete.value = null
+  
+  try {
+    // GET /public/bilhete/:codigo - Apenas CONSULTA (não faz check-in)
+    const resultado = await store.consultarBilhete(codigo.value.trim().toUpperCase())
+    if (resultado) {
+      bilhete.value = resultado
+      // Se bilhete válido, mostrar modal de confirmação
+      if (resultado.status === 'VALID') {
+        mostrarModal.value = true
+      }
+    } else {
+      error.value = store.error
+    }
+  } catch (e: any) {
+    error.value = e.message || 'Erro ao consultar bilhete'
+  }
+  
+  loading.value = false
+}
+
+async function confirmarCheckIn() {
+  if (!bilhete.value) return
+  mostrarModal.value = false
+  confirmando.value = true
+  
+  try {
+    // POST /porteiro/checkin - FAZ O CHECK-IN
+    await store.validarBilhete(bilhete.value.codigoTicketCompact)
+    
+    // Limpar IMEDIATAMENTE após check-in bem-sucedido
+    // Não mostrar o bilhete com status "USED"
+    limpar()
+    
+  } catch (e: any) {
+    error.value = e.message || 'Erro ao fazer check-in'
+  } finally {
+    confirmando.value = false
+  }
+}
+
+function cancelarCheckIn() {
+  mostrarModal.value = false
+}
+
+function limpar() {
+  bilhete.value = null
+  error.value = null
+  codigo.value = ''
+  inputRef.value?.focus()
+}
+
+function formatDate(d: string | null | undefined) {
+  if (!d) return '-'
+  try {
+    const date = new Date(d)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleString('pt-AO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return '-'
+  }
+}
+function statusLabel(s: Bilhete['status']) {
+  return { VALID: 'Válido', USED: 'Utilizado', CANCELLED: 'Cancelado', EXPIRED: 'Expirado' }[s] || s
+}
+function statusClass(s: Bilhete['status']) {
+  switch (s) {
+    case 'VALID': return 'bg-green-100 text-green-700'
+    case 'USED': return 'bg-blue-100 text-blue-700'
+    case 'CANCELLED': return 'bg-red-100 text-red-700'
+    case 'EXPIRED': return 'bg-gray-200 text-gray-700'
+    default: return 'bg-gray-100 text-gray-700'
+  }
+}
+</script>
+
+<style>
+/* Garantir que o scanner de QR Code funcione corretamente em Android */
+#qr-reader {
+  position: relative;
+  background: #000;
+}
+
+/* Forçar visibilidade do vídeo em Android */
+#qr-reader video {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 300px !important;
+  display: block !important;
+  object-fit: contain !important;
+  background: #000;
+  z-index: 1;
+}
+
+/* Container interno */
+#qr-reader > div {
+  min-height: 300px !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+/* Canvas de overlay do QR */
+#qr-reader canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 2 !important;
+}
+
+/* Garantir que elementos internos sejam visíveis */
+#qr-reader * {
+  max-width: 100%;
+}
+</style>
+
+<style scoped>
+.card { @apply bg-white rounded-lg shadow-sm border border-gray-200 p-5; }
+.input { @apply border border-gray-300 rounded px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full; }
+.btn-primary { @apply bg-blue-600 text-white px-4 py-3 rounded font-medium hover:bg-blue-700 disabled:opacity-50; }
+.btn-confirm { @apply bg-green-600 text-white px-4 py-3 rounded font-medium hover:bg-green-700 disabled:opacity-50; }
+.btn-secondary { @apply bg-gray-100 text-gray-800 px-4 py-2 rounded font-medium hover:bg-gray-200; }
+.btn-danger { @apply bg-red-600 text-white px-4 py-3 rounded font-medium hover:bg-red-700 disabled:opacity-50; }
+</style>

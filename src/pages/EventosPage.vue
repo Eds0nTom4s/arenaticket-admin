@@ -110,52 +110,58 @@ onMounted(() => store.listar())
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <h1 class="text-xl font-semibold">Eventos</h1>
-      <button class="btn-primary" @click="newEvento">Novo Evento</button>
+      <button class="btn-primary w-full sm:w-auto" @click="newEvento">Novo Evento</button>
     </div>
 
     <div v-if="store.error" class="card bg-red-50 border-red-200 text-red-600">
       {{ store.error }}
     </div>
 
+    <!-- Tabela responsiva -->
     <div class="card overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-[var(--color-text-secondary)]">
-            <th class="py-2">Título</th>
-            <th class="py-2">Local</th>
-            <th class="py-2">Data do Evento</th>
-            <th class="py-2">Duração</th>
-            <th class="py-2">Aberto</th>
-            <th class="py-2 w-48">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in sorted" :key="e.id" class="border-t border-gray-100">
-            <td class="py-2 font-medium">{{ e.titulo }}</td>
-            <td class="py-2">{{ e.local }}</td>
-            <td class="py-2">{{ new Date(e.dataEvento).toLocaleString('pt-AO') }}</td>
-            <td class="py-2">{{ e.duracaoMinutos }} min</td>
-            <td class="py-2">
-              <span :class="e.abertoParaVenda ? 'text-green-600' : 'text-red-600'">
-                {{ e.abertoParaVenda ? 'Sim' : 'Não' }}
-              </span>
-            </td>
-            <td class="py-2 space-x-2">
-              <button class="text-[var(--color-cyan)] hover:underline" @click="$router.push(`/eventos/${e.id}/lotes`)">
-                Lotes
-              </button>
-              <button class="text-[var(--color-cyan)] hover:underline" @click="editEvento(e)">Editar</button>
-              <button class="text-red-600 hover:underline" @click="deleteEvento(e.id)">Remover</button>
-            </td>
-          </tr>
-          <tr v-if="!store.loading && store.itens.length === 0">
-            <td colspan="6" class="py-6 text-center text-[var(--color-text-secondary)]">Nenhum evento</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="store.loading" class="text-sm text-[var(--color-text-secondary)] mt-2">Carregando...</div>
+      <div class="min-w-[800px]">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[var(--color-text-secondary)]">
+              <th class="py-2 px-2">Título</th>
+              <th class="py-2 px-2">Local</th>
+              <th class="py-2 px-2">Data do Evento</th>
+              <th class="py-2 px-2">Duração</th>
+              <th class="py-2 px-2">Aberto</th>
+              <th class="py-2 px-2 w-48">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in sorted" :key="e.id" class="border-t border-gray-100">
+              <td class="py-2 px-2 font-medium">{{ e.titulo }}</td>
+              <td class="py-2 px-2">{{ e.local }}</td>
+              <td class="py-2 px-2">{{ new Date(e.dataEvento).toLocaleString('pt-AO') }}</td>
+              <td class="py-2 px-2">{{ e.duracaoMinutos }} min</td>
+              <td class="py-2 px-2">
+                <span :class="e.abertoParaVenda ? 'text-green-600' : 'text-red-600'">
+                  {{ e.abertoParaVenda ? 'Sim' : 'Não' }}
+                </span>
+              </td>
+              <td class="py-2 px-2 space-x-2">
+                <button class="text-[var(--color-cyan)] hover:underline" @click="$router.push(`/eventos/${e.id}/lotes`)">
+                  Lotes
+                </button>
+                <button class="text-[var(--color-cyan)] hover:underline" @click="editEvento(e)">Editar</button>
+                <button class="text-red-600 hover:underline" @click="deleteEvento(e.id)">Remover</button>
+              </td>
+            </tr>
+            <tr v-if="!store.loading && store.itens.length === 0">
+              <td colspan="6" class="py-6 text-center text-[var(--color-text-secondary)]">Nenhum evento</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="store.loading" class="text-sm text-[var(--color-text-secondary)] mt-2 px-2">Carregando...</div>
+      <div class="text-xs text-gray-500 mt-2 px-2 sm:hidden">
+        Deslize horizontalmente para ver todas as colunas →
+      </div>
     </div>
 
     <!-- Modal Form -->

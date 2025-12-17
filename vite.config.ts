@@ -14,4 +14,17 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
   },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+        },
+      },
+    },
+  },
 })

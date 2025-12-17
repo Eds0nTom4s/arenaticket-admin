@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { usePedidosStore } from '@/store/pedidos'
+import NotificationStatusBadge from '@/components/NotificationStatusBadge.vue'
+import NotificationHistorySection from '@/components/NotificationHistorySection.vue'
+import SmsHealthWidget from '@/components/SmsHealthWidget.vue'
+import { notificationService } from '@/utils/notificationService'
 
 const store = usePedidosStore()
 const statusFilter = ref('')
 const currentPage = ref(0)
-const pageSize = ref(20)
+const pageSize = ref(50)
 const searchTerm = ref('')
 const showModal = ref(false)
 const selectedPedido = ref<any>(null)
+const autoRefresh = ref(false)
+const isResending = ref(false)
+const resendError = ref<string | null>(null)
+let refreshInterval: number | null = null
 
 const statusOptions = [
   { value: '', label: 'Todos', color: 'text-gray-600' },
@@ -19,15 +27,25 @@ const statusOptions = [
 ]
 
 const filteredPedidos = computed(() => {
-  if (!searchTerm.value) return store.itens
+  let pedidos = store.itens
   
-  const term = searchTerm.value.toLowerCase()
-  return store.itens.filter(p => 
-    p.compradorNome.toLowerCase().includes(term) ||
-    p.compradorTelefone.includes(term) ||
-    p.clientRequestId?.toLowerCase().includes(term) ||
-    p.id.toLowerCase().includes(term)
+  // Ordenar por data mais recente primeiro (SEMPRE)
+  pedidos = [...pedidos].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
+  
+  // Aplicar busca local (após ordenação)
+  if (searchTerm.value) {
+    const term = searchTerm.value.toLowerCase()
+    pedidos = pedidos.filter(p => 
+      p.compradorNome.toLowerCase().includes(term) ||
+      p.compradorTelefone.includes(term) ||
+      p.clientRequestId?.toLowerCase().includes(term) ||
+      p.id.toLowerCase().includes(term)
+    )
+  }
+  
+  return pedidos
 })
 
 async function loadPedidos() {
@@ -35,11 +53,11 @@ async function loadPedidos() {
     status: statusFilter.value || undefined,
     page: currentPage.value,
     size: pageSize.value,
+    sort: 'createdAt,desc', // Ordenar por data mais recente primeiro
   })
 }
 
-function changeStatus(value: string) {
-  statusFilter.value = value
+function changeStatus() {
   currentPage.value = 0
   loadPedidos()
 }
@@ -57,6 +75,36 @@ function prevPage() {
     loadPedidos()
   }
 }
+
+function changePageSize(newSize: number) {
+  pageSize.value = newSize
+  currentPage.value = 0
+  loadPedidos()
+}
+
+function toggleAutoRefresh() {
+  autoRefresh.value = !autoRefresh.value
+  
+  if (autoRefresh.value) {
+    // Recarregar a cada 30 segundos
+    refreshInterval = window.setInterval(() => {
+      loadPedidos()
+    }, 30000)
+  } else {
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+  }
+}
+
+// Limpar intervalo ao desmontar componente
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+})
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -154,15 +202,32 @@ async function reenviarCodigos(pedidoId: string) {
     return
   }
   
+  isResending.value = true
+  resendError.value = null
+  
   try {
-    const response = await store.reenviarCodigos(pedidoId)
-    if (response.success) {
-      alert('✅ Códigos reenviados com sucesso!')
-    } else {
-      alert(response.message || 'Erro ao reenviar códigos.')
+    const response = await notificationService.resendTicketCodes(pedidoId)
+    
+    // Sucesso
+    alert('✅ Códigos reenviados com sucesso!\n\n' + response.message)
+    
+    // Atualizar modal se estiver aberto
+    if (selectedPedido.value?.id === pedidoId) {
+      try {
+        selectedPedido.value = await store.buscarPorId(pedidoId)
+      } catch (e) {
+        console.error('Erro ao atualizar detalhes:', e)
+      }
     }
+    
+    // Recarregar lista
+    await loadPedidos()
   } catch (error: any) {
-    alert(error.message || 'Erro ao reenviar códigos. Verifique se o pedido está pago e tem telefone cadastrado.')
+    const message = error.response?.data?.message || error.message || 'Erro ao reenviar códigos'
+    resendError.value = message
+    alert('❌ Erro ao reenviar códigos:\n\n' + message)
+  } finally {
+    isResending.value = false
   }
 }
 
@@ -179,12 +244,33 @@ onMounted(() => loadPedidos())
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h1 class="text-xl font-semibold">Gestão de Pedidos</h1>
         <p class="text-sm text-[var(--color-text-secondary)] mt-1">
           Acompanhe e gerencie todos os pedidos de bilhetes
         </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button 
+          @click="toggleAutoRefresh"
+          :class="autoRefresh ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-600 border-gray-300'"
+          class="px-3 py-2 rounded-lg border text-xs sm:text-sm font-medium transition-colors flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" :class="autoRefresh ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF' }}
+        </button>
+        <button 
+          @click="loadPedidos"
+          class="px-3 py-2 bg-[var(--color-cyan)] text-white rounded-lg text-xs sm:text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Atualizar
+        </button>
       </div>
     </div>
 
@@ -204,6 +290,9 @@ onMounted(() => loadPedidos())
       </div>
     </div>
 
+    <!-- Widget de Saúde do Sistema SMS -->
+    <SmsHealthWidget />
+
     <!-- Filtros e Busca -->
     <div class="card">
       <div class="flex flex-col sm:flex-row gap-3">
@@ -211,16 +300,24 @@ onMounted(() => loadPedidos())
           <input 
             v-model="searchTerm" 
             type="text" 
-            class="input" 
-            placeholder="Buscar por nome, telefone ou ID do pedido..."
+            class="input w-full" 
+            placeholder="Buscar por nome, telefone ou ID..."
           />
         </div>
         <div class="flex items-center gap-2">
           <label class="text-sm text-[var(--color-text-secondary)] whitespace-nowrap">Status:</label>
-          <select v-model="statusFilter" class="input w-auto" @change="changeStatus(statusFilter)">
+          <select v-model="statusFilter" class="input w-full sm:w-auto" @change="changeStatus">
             <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-[var(--color-text-secondary)] whitespace-nowrap">Por página:</label>
+          <select v-model="pageSize" class="input w-full sm:w-auto" @change="changePageSize(pageSize)">
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
           </select>
         </div>
       </div>
@@ -232,24 +329,36 @@ onMounted(() => loadPedidos())
 
     <!-- Tabela de Pedidos -->
     <div class="card overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-[var(--color-text-secondary)] border-b border-gray-200">
-            <th class="py-3 px-2">ID / Ref</th>
-            <th class="py-3 px-2">Comprador</th>
-            <th class="py-3 px-2">Contato</th>
-            <th class="py-3 px-2">Evento</th>
-            <th class="py-3 px-2">Lote</th>
-            <th class="py-3 px-2">Qtd</th>
-            <th class="py-3 px-2">Total</th>
-            <th class="py-3 px-2">Pagamento</th>
-            <th class="py-3 px-2">Status</th>
-            <th class="py-3 px-2">Data</th>
-            <th class="py-3 px-2 w-32">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="pedido in filteredPedidos" :key="pedido.id" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <div class="min-w-[1100px]">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[var(--color-text-secondary)] border-b border-gray-200">
+              <th class="py-3 px-2">ID / Ref</th>
+              <th class="py-3 px-2">Comprador</th>
+              <th class="py-3 px-2">Contato</th>
+              <th class="py-3 px-2">Evento</th>
+              <th class="py-3 px-2">Lote</th>
+              <th class="py-3 px-2">Qtd</th>
+              <th class="py-3 px-2">Total</th>
+              <th class="py-3 px-2">Pagamento</th>
+              <th class="py-3 px-2">Status</th>
+              <th class="py-3 px-2">Data</th>
+              <th class="py-3 px-2 w-32">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+          <tr 
+            v-for="pedido in filteredPedidos" 
+            :key="pedido.id" 
+            :class="[
+              'border-b border-gray-100 hover:transition-colors',
+              (pedido.notificationFailureCount ?? 0) >= 2
+                ? 'bg-red-200 border-l-4 border-red-600 hover:bg-red-300 font-semibold'
+                : (pedido.notificationFailureCount ?? 0) > 0
+                  ? 'bg-red-50 border-l-4 border-red-500 hover:bg-red-100'
+                  : 'hover:bg-gray-50'
+            ]"
+          >
             <td class="py-3 px-2">
               <div class="font-mono text-xs">{{ pedido.clientRequestId || pedido.id.slice(0, 8) }}</div>
             </td>
@@ -278,9 +387,17 @@ onMounted(() => loadPedidos())
               <div class="text-xs">{{ formatMetodoPagamento(pedido.metodoPagamento) }}</div>
             </td>
             <td class="py-3 px-2">
-              <span :class="getStatusColor(pedido.status)" class="px-2 py-1 rounded-full text-xs font-semibold">
-                {{ getStatusLabel(pedido.status) }}
-              </span>
+              <div class="flex items-center gap-2">
+                <span :class="getStatusColor(pedido.status)" class="px-2 py-1 rounded-full text-xs font-semibold">
+                  {{ getStatusLabel(pedido.status) }}
+                </span>
+                <NotificationStatusBadge 
+                  v-if="pedido.lastNotificationStatus"
+                  :status="pedido.lastNotificationStatus"
+                  :failure-count="pedido.notificationFailureCount || 0"
+                  compact
+                />
+              </div>
             </td>
             <td class="py-3 px-2 text-xs">{{ formatDate(pedido.createdAt) }}</td>
             <td class="py-3 px-2">
@@ -305,12 +422,16 @@ onMounted(() => loadPedidos())
           </tr>
         </tbody>
       </table>
+      </div>
       <div v-if="store.loading" class="text-sm text-[var(--color-text-secondary)] mt-4 text-center py-4">
         Carregando pedidos...
       </div>
+      <div class="text-xs text-gray-500 mt-2 px-2 sm:hidden">
+        Deslize horizontalmente para ver todas as colunas →
+      </div>
       
       <!-- Paginação -->
-      <div v-if="store.totalPages > 1" class="flex items-center justify-between mt-4 pt-4 border-t">
+      <div v-if="store.totalPages > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t">
         <div class="text-sm text-[var(--color-text-secondary)]">
           Página {{ currentPage + 1 }} de {{ store.totalPages }} ({{ store.totalElements }} pedidos)
         </div>
@@ -432,6 +553,15 @@ onMounted(() => loadPedidos())
                 <div class="text-sm font-mono">{{ selectedPedido.numeroSocio }}</div>
               </div>
             </div>
+          </div>
+
+          <!-- Histórico de Notificações -->
+          <div v-if="selectedPedido.notificacoes" class="border-t pt-4">
+            <NotificationHistorySection
+              :notifications="selectedPedido.notificacoes"
+              :on-resend="() => reenviarCodigos(selectedPedido.id)"
+              :is-resending="isResending"
+            />
           </div>
 
           <!-- Bilhetes (se disponível) -->

@@ -1,0 +1,1256 @@
+================================================================================
+  GUIA DE IMPLEMENTAÇÃO - SISTEMA DE RESEND E RASTREAMENTO DE NOTIFICAÇÕES
+  Painel Administrativo ArenaTicket
+  Data: 14 de dezembro de 2025
+  Versão: 1.0
+================================================================================
+
+ÍNDICE
+------
+1. VISÃO GERAL
+2. ARQUITETURA DA SOLUÇÃO
+3. ENDPOINTS DA API BACKEND
+4. MODELO DE DADOS
+5. IMPLEMENTAÇÃO FRONTEND
+6. INDICADORES VISUAIS
+7. MODAL DE DETALHES DO PEDIDO
+8. SISTEMA DE RESEND
+9. FLUXO DE TRABALHO
+10. CASOS DE USO
+11. CONSIDERAÇÕES DE SEGURANÇA
+12. TESTES E VALIDAÇÃO
+
+
+================================================================================
+1. VISÃO GERAL
+================================================================================
+
+OBJETIVO:
+Implementar sistema visual para identificar pedidos com problemas de entrega
+de SMS e fornecer funcionalidade de reenvio de códigos com histórico completo
+de tentativas de notificação.
+
+FUNCIONALIDADES PRINCIPAIS:
+- Indicador visual de pedidos com notificações falhadas
+- Histórico completo de notificações (sucesso/falha) por pedido
+- Botão de resend integrado no modal de detalhes
+- Dashboard de saúde do sistema SMS
+- Auditoria de todas as operações de resend
+
+BENEFÍCIOS:
+- Identificação rápida de pedidos problemáticos
+- Resolução proativa de falhas de comunicação
+- Visibilidade completa do histórico de notificações
+- Redução de chamados de suporte
+
+
+================================================================================
+2. ARQUITETURA DA SOLUÇÃO
+================================================================================
+
+COMPONENTES BACKEND (JÁ IMPLEMENTADOS):
+┌──────────────────────────────────────────────────────────────┐
+│ SmsHealthMonitor                                             │
+│ - Rastreia saúde do sistema SMS                             │
+│ - Contadores: consecutiveFailures, totalFailures, success   │
+│ - Alertas automáticos após threshold                        │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│ TelcoSmsNotificationProvider                                 │
+│ - Integrado com SmsHealthMonitor                            │
+│ - Registra recordSuccess() ou recordFailure(reason)         │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│ PedidoService                                                │
+│ - reenviarCodigosBilhetes(UUID pedidoId)                    │
+│ - Valida PAID, telefone, bilhetes                           │
+│ - Reenvia SMS com contexto completo                         │
+└──────────────────────────────────────────────────────────────┘
+
+COMPONENTES FRONTEND (A IMPLEMENTAR):
+┌──────────────────────────────────────────────────────────────┐
+│ PedidosTable                                                 │
+│ - Lista pedidos com indicadores visuais                     │
+│ - Cor diferenciada para pedidos com notificações falhadas   │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│ PedidoDetailsModal                                           │
+│ - Seção "Histórico de Notificações"                        │
+│ - Timeline de tentativas (sucesso/falha)                    │
+│ - Botão "Reenviar Códigos"                                  │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│ SmsHealthDashboard                                           │
+│ - Widget de saúde do sistema SMS                            │
+│ - Métricas em tempo real                                    │
+└──────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+3. ENDPOINTS DA API BACKEND
+================================================================================
+
+3.1 SAÚDE DO SISTEMA SMS
+------------------------
+GET /api/v1/admin/notifications/sms/health
+
+HEADERS:
+  Authorization: Bearer {JWT_TOKEN}
+
+RESPONSE 200 OK:
+{
+  "healthy": true,
+  "consecutiveFailures": 0,
+  "totalFailures": 12,
+  "totalSuccess": 1543,
+  "successRate": 99.22,
+  "lastSuccessTimestamp": "2025-12-14T14:35:22Z",
+  "lastFailureTimestamp": "2025-12-14T10:15:10Z",
+  "lastFailureReason": "Connection timeout"
+}
+
+
+3.2 REENVIAR CÓDIGOS (ADMIN)
+-----------------------------
+POST /api/v1/admin/pedidos/{pedidoId}/reenviar-codigos
+
+HEADERS:
+  Authorization: Bearer {JWT_TOKEN}
+  Content-Type: application/json
+
+PATH PARAMETERS:
+  pedidoId: UUID do pedido (ex: 15b81a4f-9c62-4dfe-afb8-adf8c403e3d9)
+
+RESPONSE 200 OK:
+{
+  "success": true,
+  "message": "Códigos reenviados com sucesso para o telefone +244 9XX***234."
+}
+
+RESPONSE 400 BAD REQUEST (Pedido não PAGO):
+{
+  "success": false,
+  "message": "Pedido não está no estado PAID"
+}
+
+RESPONSE 404 NOT FOUND:
+{
+  "success": false,
+  "message": "Pedido não encontrado"
+}
+
+AUDITORIA:
+- Evento registrado: CODIGOS_REENVIADOS_BY_ADMIN
+- Entidade: PEDIDO
+- EntityId: {pedidoId}
+- UserId: {adminUserId}
+
+
+3.3 DETALHES DO PEDIDO (COM HISTÓRICO DE NOTIFICAÇÕES)
+-------------------------------------------------------
+GET /api/v1/admin/pedidos/{pedidoId}
+
+HEADERS:
+  Authorization: Bearer {JWT_TOKEN}
+
+RESPONSE 200 OK:
+{
+  "id": "15b81a4f-9c62-4dfe-afb8-adf8c403e3d9",
+  "referencia": "562113867",
+  "estado": "PAID",
+  "telefone": "+244 912345678",
+  "comprador": {
+    "nome": "João Silva",
+    "email": "joao@example.com"
+  },
+  "evento": {
+    "id": 1,
+    "nome": "Festival de Verão 2025",
+    "data": "2025-12-20T19:00:00+01:00"
+  },
+  "bilhetes": [
+    {
+      "id": 1,
+      "codigo": "GDSE-12345678",
+      "status": "ATIVO",
+      "smsEnviado": true,
+      "dataEnvioSms": "2025-12-14T10:30:15+01:00"
+    }
+  ],
+  "notificacoes": [
+    {
+      "id": 1,
+      "tipo": "SMS_TICKET_CODES",
+      "status": "SUCCESS",
+      "tentativa": 1,
+      "dataTentativa": "2025-12-14T10:30:15+01:00",
+      "destinatario": "+244 9XX***678",
+      "motivo": null
+    },
+    {
+      "id": 2,
+      "tipo": "SMS_TICKET_CODES",
+      "status": "FAILED",
+      "tentativa": 2,
+      "dataTentativa": "2025-12-14T11:45:00+01:00",
+      "destinatario": "+244 9XX***678",
+      "motivo": "Connection timeout"
+    }
+  ],
+  "valorTotal": 5000.00,
+  "createdAt": "2025-12-14T10:15:00+01:00",
+  "updatedAt": "2025-12-14T11:45:00+01:00"
+}
+
+
+3.4 LISTAR PEDIDOS (COM INDICADOR DE NOTIFICAÇÕES)
+---------------------------------------------------
+GET /api/v1/admin/pedidos?page=0&size=20&sort=createdAt,desc
+
+HEADERS:
+  Authorization: Bearer {JWT_TOKEN}
+
+QUERY PARAMETERS:
+  page: número da página (default: 0)
+  size: tamanho da página (default: 20)
+  sort: ordenação (ex: createdAt,desc)
+  estado: filtro por estado (PENDING, PAID, CANCELLED, EXPIRED)
+  notificationStatus: filtro por status de notificação (ALL, FAILED, SUCCESS)
+
+RESPONSE 200 OK:
+{
+  "content": [
+    {
+      "id": "15b81a4f-9c62-4dfe-afb8-adf8c403e3d9",
+      "referencia": "562113867",
+      "estado": "PAID",
+      "comprador": "João Silva",
+      "telefone": "+244 9XX***678",
+      "valorTotal": 5000.00,
+      "createdAt": "2025-12-14T10:15:00+01:00",
+      "hasNotificationFailure": true,
+      "lastNotificationStatus": "FAILED",
+      "lastNotificationTimestamp": "2025-12-14T11:45:00+01:00",
+      "notificationFailureCount": 1
+    }
+  ],
+  "pageable": {
+    "pageNumber": 0,
+    "pageSize": 20
+  },
+  "totalElements": 150,
+  "totalPages": 8
+}
+
+
+================================================================================
+4. MODELO DE DADOS
+================================================================================
+
+4.1 EXTENSÃO DA ENTIDADE PEDIDO (BACKEND)
+------------------------------------------
+NOTA: Campos de notificação são calculados dinamicamente a partir da 
+      tabela de auditoria ou tabela específica de notificações.
+
+Não é necessário adicionar colunas físicas à tabela pedidos.
+Os dados são agregados via query JOIN.
+
+
+4.2 NOVA TABELA: notificacoes (RECOMENDADO)
+--------------------------------------------
+CREATE TABLE notificacoes (
+    id BIGSERIAL PRIMARY KEY,
+    pedido_id UUID NOT NULL REFERENCES pedidos(id),
+    tipo VARCHAR(50) NOT NULL, -- SMS_TICKET_CODES, SMS_PAYMENT_CONFIRMED, EMAIL_CONFIRMATION
+    status VARCHAR(20) NOT NULL, -- SUCCESS, FAILED, PENDING
+    tentativa INT NOT NULL DEFAULT 1,
+    data_tentativa TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    destinatario VARCHAR(255) NOT NULL, -- telefone ou email (mascarado nos logs)
+    motivo TEXT, -- razão da falha (timeout, invalid number, etc)
+    usuario_id BIGINT REFERENCES usuarios(id), -- admin que solicitou resend
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_notificacoes_pedido_id (pedido_id),
+    INDEX idx_notificacoes_status (status),
+    INDEX idx_notificacoes_data_tentativa (data_tentativa DESC)
+);
+
+
+4.3 MIGRATION SQL
+-----------------
+Arquivo: V18__create_notificacoes_table.sql
+
+-- Tabela para rastreamento completo de notificações
+CREATE TABLE notificacoes (
+    id BIGSERIAL PRIMARY KEY,
+    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    tipo VARCHAR(50) NOT NULL CHECK (tipo IN ('SMS_TICKET_CODES', 'SMS_PAYMENT_CONFIRMED', 'EMAIL_CONFIRMATION')),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('SUCCESS', 'FAILED', 'PENDING')),
+    tentativa INT NOT NULL DEFAULT 1 CHECK (tentativa > 0),
+    data_tentativa TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    destinatario VARCHAR(255) NOT NULL,
+    motivo TEXT,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para performance
+CREATE INDEX idx_notificacoes_pedido_id ON notificacoes(pedido_id);
+CREATE INDEX idx_notificacoes_status ON notificacoes(status);
+CREATE INDEX idx_notificacoes_data_tentativa ON notificacoes(data_tentativa DESC);
+CREATE INDEX idx_notificacoes_tipo_status ON notificacoes(tipo, status);
+
+-- View para agregação rápida
+CREATE VIEW v_pedidos_notificacoes_summary AS
+SELECT 
+    p.id AS pedido_id,
+    COUNT(CASE WHEN n.status = 'FAILED' THEN 1 END) AS notification_failure_count,
+    MAX(CASE WHEN n.status = 'FAILED' THEN n.data_tentativa END) AS last_failure_timestamp,
+    MAX(n.data_tentativa) AS last_notification_timestamp,
+    (SELECT n2.status FROM notificacoes n2 WHERE n2.pedido_id = p.id ORDER BY n2.data_tentativa DESC LIMIT 1) AS last_notification_status
+FROM pedidos p
+LEFT JOIN notificacoes n ON n.pedido_id = p.id
+GROUP BY p.id;
+
+
+================================================================================
+5. IMPLEMENTAÇÃO FRONTEND
+================================================================================
+
+5.1 TECNOLOGIAS RECOMENDADAS
+-----------------------------
+- React 18+ ou Vue 3+
+- TypeScript para type safety
+- Axios para chamadas HTTP
+- TanStack Table (React Table) ou AG Grid para tabela de pedidos
+- Tailwind CSS ou Material-UI para estilização
+- React Query ou SWR para cache de dados
+
+
+5.2 ESTRUTURA DE COMPONENTES
+-----------------------------
+src/
+  components/
+    admin/
+      pedidos/
+        PedidosTable.tsx              # Tabela principal
+        PedidoDetailsModal.tsx        # Modal de detalhes
+        NotificationHistorySection.tsx # Seção de histórico
+        ResendButton.tsx              # Botão de resend
+        NotificationStatusBadge.tsx   # Badge de status
+      dashboard/
+        SmsHealthWidget.tsx           # Widget de saúde SMS
+  services/
+    api/
+      pedidoService.ts               # Serviço de API
+      notificationService.ts         # Serviço de notificações
+  types/
+    pedido.types.ts                  # Tipos TypeScript
+    notification.types.ts            # Tipos de notificações
+  hooks/
+    usePedidos.ts                    # Hook para pedidos
+    useNotifications.ts              # Hook para notificações
+    useSmsHealth.ts                  # Hook para saúde SMS
+
+
+5.3 TIPOS TYPESCRIPT
+--------------------
+// types/notification.types.ts
+export interface Notification {
+  id: number;
+  tipo: NotificationType;
+  status: NotificationStatus;
+  tentativa: number;
+  dataTentativa: string; // ISO 8601
+  destinatario: string;
+  motivo?: string;
+  usuarioId?: number;
+}
+
+export type NotificationType = 
+  | 'SMS_TICKET_CODES' 
+  | 'SMS_PAYMENT_CONFIRMED' 
+  | 'EMAIL_CONFIRMATION';
+
+export type NotificationStatus = 'SUCCESS' | 'FAILED' | 'PENDING';
+
+export interface NotificationSummary {
+  hasNotificationFailure: boolean;
+  lastNotificationStatus: NotificationStatus;
+  lastNotificationTimestamp: string;
+  notificationFailureCount: number;
+}
+
+// types/pedido.types.ts
+export interface Pedido {
+  id: string;
+  referencia: string;
+  estado: PedidoEstado;
+  comprador: string;
+  telefone: string;
+  valorTotal: number;
+  createdAt: string;
+  notificacoes?: Notification[];
+  // ... outros campos
+}
+
+export interface PedidoWithNotificationStatus extends Pedido, NotificationSummary {}
+
+
+================================================================================
+6. INDICADORES VISUAIS
+================================================================================
+
+6.1 CORES PARA ESTADOS DE NOTIFICAÇÃO
+--------------------------------------
+SUCCESS:
+  - Background: #10B981 (green-500)
+  - Text: #FFFFFF
+  - Border: #059669 (green-600)
+  - Icon: ✓ (checkmark)
+
+FAILED:
+  - Background: #EF4444 (red-500)
+  - Text: #FFFFFF
+  - Border: #DC2626 (red-600)
+  - Icon: ✕ (x-mark)
+
+PENDING:
+  - Background: #F59E0B (amber-500)
+  - Text: #FFFFFF
+  - Border: #D97706 (amber-600)
+  - Icon: ⏱ (clock)
+
+MULTIPLE_FAILURES (2+ falhas):
+  - Background: #DC2626 (red-600)
+  - Text: #FFFFFF
+  - Border: #991B1B (red-800)
+  - Icon: ⚠ (warning)
+  - Animation: Pulse suave
+
+
+6.2 DESTAQUE NA TABELA DE PEDIDOS
+----------------------------------
+LINHA NORMAL (sem problemas):
+  - Background: #FFFFFF
+  - Hover: #F9FAFB (gray-50)
+
+LINHA COM FALHA (hasNotificationFailure = true):
+  - Background: #FEF2F2 (red-50)
+  - Border-left: 4px solid #EF4444 (red-500)
+  - Hover: #FEE2E2 (red-100)
+
+LINHA COM MÚLTIPLAS FALHAS (notificationFailureCount >= 2):
+  - Background: #FECACA (red-200)
+  - Border-left: 4px solid #DC2626 (red-600)
+  - Hover: #FCA5A5 (red-300)
+  - Font-weight: 600 (bold)
+
+
+6.3 EXEMPLO DE CÓDIGO CSS/TAILWIND
+-----------------------------------
+// NotificationStatusBadge.tsx
+const getNotificationBadgeClass = (status: NotificationStatus, failureCount: number) => {
+  if (status === 'FAILED' && failureCount >= 2) {
+    return 'bg-red-600 text-white border-red-800 animate-pulse';
+  }
+  
+  switch (status) {
+    case 'SUCCESS':
+      return 'bg-green-500 text-white border-green-600';
+    case 'FAILED':
+      return 'bg-red-500 text-white border-red-600';
+    case 'PENDING':
+      return 'bg-amber-500 text-white border-amber-600';
+    default:
+      return 'bg-gray-500 text-white border-gray-600';
+  }
+};
+
+// PedidosTable.tsx
+const getRowClass = (pedido: PedidoWithNotificationStatus) => {
+  if (pedido.notificationFailureCount >= 2) {
+    return 'bg-red-200 border-l-4 border-red-600 hover:bg-red-300 font-semibold';
+  }
+  
+  if (pedido.hasNotificationFailure) {
+    return 'bg-red-50 border-l-4 border-red-500 hover:bg-red-100';
+  }
+  
+  return 'bg-white hover:bg-gray-50';
+};
+
+
+================================================================================
+7. MODAL DE DETALHES DO PEDIDO
+================================================================================
+
+7.1 LAYOUT DO MODAL
+-------------------
+┌────────────────────────────────────────────────────────────────┐
+│ DETALHES DO PEDIDO #562113867                          [X]     │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│ ┌──────────────────────┐  ┌──────────────────────┐           │
+│ │ INFORMAÇÕES GERAIS   │  │ COMPRADOR            │           │
+│ │ Estado: PAID         │  │ Nome: João Silva     │           │
+│ │ Valor: 5.000,00 Kz   │  │ Tel: +244 912***678  │           │
+│ │ Data: 14/12/2025     │  │ Email: joao@...      │           │
+│ └──────────────────────┘  └──────────────────────┘           │
+│                                                                │
+│ ┌────────────────────────────────────────────────────────────┐│
+│ │ 📱 HISTÓRICO DE NOTIFICAÇÕES                       [Reenviar]││
+│ ├────────────────────────────────────────────────────────────┤│
+│ │                                                            ││
+│ │ ┌──────────────────────────────────────────────────────┐  ││
+│ │ │ ✓ SMS enviado com sucesso          14/12 10:30:15   │  ││
+│ │ │   Tentativa #1                                        │  ││
+│ │ │   Destinatário: +244 9XX***678                       │  ││
+│ │ └──────────────────────────────────────────────────────┘  ││
+│ │                                                            ││
+│ │ ┌──────────────────────────────────────────────────────┐  ││
+│ │ │ ✕ Falha ao enviar SMS              14/12 11:45:00   │  ││
+│ │ │   Tentativa #2                                        │  ││
+│ │ │   Destinatário: +244 9XX***678                       │  ││
+│ │ │   Motivo: Connection timeout                         │  ││
+│ │ │   Solicitado por: admin@arenaticket.com             │  ││
+│ │ └──────────────────────────────────────────────────────┘  ││
+│ │                                                            ││
+│ └────────────────────────────────────────────────────────────┘│
+│                                                                │
+│ ┌────────────────────────────────────────────────────────────┐│
+│ │ 🎫 BILHETES (2)                                            ││
+│ │ • GDSE-12345678 - Pista - ATIVO                           ││
+│ │ • GDSE-87654321 - VIP - ATIVO                             ││
+│ └────────────────────────────────────────────────────────────┘│
+│                                                                │
+│                                    [Fechar]                    │
+└────────────────────────────────────────────────────────────────┘
+
+
+7.2 CÓDIGO EXEMPLO - NotificationHistorySection.tsx
+----------------------------------------------------
+import React from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/solid';
+
+interface NotificationHistorySectionProps {
+  notifications: Notification[];
+  onResend: () => void;
+  isResending: boolean;
+}
+
+export const NotificationHistorySection: React.FC<NotificationHistorySectionProps> = ({
+  notifications,
+  onResend,
+  isResending
+}) => {
+  const getStatusIcon = (status: NotificationStatus) => {
+    switch (status) {
+      case 'SUCCESS':
+        return <CheckCircleIcon className="w-6 h-6 text-green-500" />;
+      case 'FAILED':
+        return <XCircleIcon className="w-6 h-6 text-red-500" />;
+      case 'PENDING':
+        return <ClockIcon className="w-6 h-6 text-amber-500" />;
+    }
+  };
+
+  const getStatusText = (status: NotificationStatus) => {
+    switch (status) {
+      case 'SUCCESS':
+        return 'SMS enviado com sucesso';
+      case 'FAILED':
+        return 'Falha ao enviar SMS';
+      case 'PENDING':
+        return 'Envio pendente';
+    }
+  };
+
+  const getStatusClass = (status: NotificationStatus) => {
+    switch (status) {
+      case 'SUCCESS':
+        return 'bg-green-50 border-green-200';
+      case 'FAILED':
+        return 'bg-red-50 border-red-200';
+      case 'PENDING':
+        return 'bg-amber-50 border-amber-200';
+    }
+  };
+
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          📱 Histórico de Notificações
+        </h3>
+        <button
+          onClick={onResend}
+          disabled={isResending}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          {isResending ? (
+            <>
+              <span className="animate-spin mr-2">⏳</span>
+              Reenviando...
+            </>
+          ) : (
+            'Reenviar Códigos'
+          )}
+        </button>
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          Nenhuma notificação registrada
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              className={`border rounded-lg p-4 ${getStatusClass(notification.status)}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  {getStatusIcon(notification.status)}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold text-gray-900">
+                      {getStatusText(notification.status)}
+                    </p>
+                    <span className="text-sm text-gray-600">
+                      {format(new Date(notification.dataTentativa), 'dd/MM HH:mm:ss', { locale: ptBR })}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1 text-sm text-gray-700">
+                    <p>Tentativa #{notification.tentativa}</p>
+                    <p>Destinatário: {notification.destinatario}</p>
+                    
+                    {notification.motivo && (
+                      <p className="text-red-700 font-medium">
+                        Motivo: {notification.motivo}
+                      </p>
+                    )}
+                    
+                    {notification.usuarioId && (
+                      <p className="text-blue-700">
+                        Solicitado por administrador
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+7.3 CÓDIGO EXEMPLO - PedidoDetailsModal.tsx
+--------------------------------------------
+import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { pedidoService } from '@/services/api/pedidoService';
+import { NotificationHistorySection } from './NotificationHistorySection';
+import { toast } from 'react-hot-toast';
+
+interface PedidoDetailsModalProps {
+  pedido: Pedido;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({
+  pedido,
+  isOpen,
+  onClose
+}) => {
+  const queryClient = useQueryClient();
+
+  const resendMutation = useMutation({
+    mutationFn: () => pedidoService.resendTicketCodes(pedido.id),
+    onSuccess: (response) => {
+      toast.success(response.message);
+      queryClient.invalidateQueries(['pedido', pedido.id]);
+      queryClient.invalidateQueries(['pedidos']);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || 'Erro ao reenviar códigos';
+      toast.error(errorMessage);
+    }
+  });
+
+  const handleResend = () => {
+    if (confirm('Deseja realmente reenviar os códigos para este pedido?')) {
+      resendMutation.mutate();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Detalhes do Pedido #{pedido.referencia}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Informações Gerais e Comprador */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ... informações gerais ... */}
+          </div>
+
+          {/* Histórico de Notificações */}
+          <NotificationHistorySection
+            notifications={pedido.notificacoes || []}
+            onResend={handleResend}
+            isResending={resendMutation.isPending}
+          />
+
+          {/* Bilhetes */}
+          <div className="border rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-3">🎫 Bilhetes ({pedido.bilhetes.length})</h3>
+            {/* ... lista de bilhetes ... */}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end border-t">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+================================================================================
+8. SISTEMA DE RESEND
+================================================================================
+
+8.1 SERVIÇO DE API (pedidoService.ts)
+--------------------------------------
+import axios from 'axios';
+import { API_BASE_URL } from '@/config';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Interceptor para adicionar token JWT
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export const pedidoService = {
+  /**
+   * Reenvia códigos de bilhetes para um pedido
+   */
+  async resendTicketCodes(pedidoId: string) {
+    const { data } = await api.post(`/api/v1/admin/pedidos/${pedidoId}/reenviar-codigos`);
+    return data;
+  },
+
+  /**
+   * Busca detalhes de um pedido incluindo histórico de notificações
+   */
+  async getPedidoById(pedidoId: string): Promise<Pedido> {
+    const { data } = await api.get(`/api/v1/admin/pedidos/${pedidoId}`);
+    return data;
+  },
+
+  /**
+   * Lista pedidos com filtros e paginação
+   */
+  async getPedidos(params: {
+    page?: number;
+    size?: number;
+    sort?: string;
+    estado?: string;
+    notificationStatus?: 'ALL' | 'FAILED' | 'SUCCESS';
+  }) {
+    const { data } = await api.get('/api/v1/admin/pedidos', { params });
+    return data;
+  }
+};
+
+
+8.2 HOOK CUSTOMIZADO (usePedidos.ts)
+-------------------------------------
+import { useQuery } from '@tanstack/react-query';
+import { pedidoService } from '@/services/api/pedidoService';
+
+export const usePedidos = (params: {
+  page: number;
+  size: number;
+  notificationStatus?: 'ALL' | 'FAILED' | 'SUCCESS';
+}) => {
+  return useQuery({
+    queryKey: ['pedidos', params],
+    queryFn: () => pedidoService.getPedidos(params),
+    staleTime: 30000, // 30 segundos
+    refetchInterval: 60000, // Refetch a cada 1 minuto
+  });
+};
+
+export const usePedidoDetails = (pedidoId: string) => {
+  return useQuery({
+    queryKey: ['pedido', pedidoId],
+    queryFn: () => pedidoService.getPedidoById(pedidoId),
+    enabled: !!pedidoId,
+    staleTime: 10000, // 10 segundos
+  });
+};
+
+
+8.3 VALIDAÇÕES NO FRONTEND
+---------------------------
+ANTES DE REENVIAR:
+✓ Verificar se pedido está no estado PAID
+✓ Verificar se telefone existe
+✓ Verificar se há bilhetes associados
+✓ Confirmar ação com o usuário (dialog)
+✓ Desabilitar botão durante processamento
+✓ Mostrar feedback visual (loading spinner)
+
+APÓS RESEND:
+✓ Mostrar mensagem de sucesso/erro (toast)
+✓ Atualizar histórico de notificações automaticamente
+✓ Atualizar contadores de falha na tabela
+✓ Registrar log no console (dev mode)
+
+
+8.4 TRATAMENTO DE ERROS
+------------------------
+ERROS POSSÍVEIS:
+1. Pedido não encontrado (404)
+2. Pedido não está PAID (400)
+3. Telefone inválido ou ausente (400)
+4. Falha na API SMS (500)
+5. Token expirado (401)
+6. Sem permissão (403)
+
+TRATAMENTO:
+try {
+  await pedidoService.resendTicketCodes(pedidoId);
+  toast.success('Códigos reenviados com sucesso!');
+} catch (error) {
+  if (error.response?.status === 404) {
+    toast.error('Pedido não encontrado');
+  } else if (error.response?.status === 400) {
+    toast.error(error.response.data.message || 'Pedido não pode ser reenviado');
+  } else if (error.response?.status === 401) {
+    toast.error('Sessão expirada. Faça login novamente');
+    // Redirecionar para login
+  } else {
+    toast.error('Erro ao reenviar códigos. Tente novamente.');
+  }
+}
+
+
+================================================================================
+9. FLUXO DE TRABALHO
+================================================================================
+
+9.1 FLUXO NORMAL (SEM PROBLEMAS)
+---------------------------------
+1. Cliente faz pedido e pagamento
+2. Sistema envia SMS com códigos
+3. TelcoSmsNotificationProvider.recordSuccess()
+4. Registro salvo em notificacoes (status: SUCCESS)
+5. Na tabela admin, pedido aparece com linha branca (normal)
+6. Modal mostra histórico com ✓ verde
+
+
+9.2 FLUXO COM FALHA (AUTOMÁTICO)
+---------------------------------
+1. Cliente faz pedido e pagamento
+2. Sistema tenta enviar SMS
+3. Falha (timeout, créditos esgotados, etc)
+4. TelcoSmsNotificationProvider.recordFailure(reason)
+5. SmsHealthMonitor incrementa consecutiveFailures
+6. Registro salvo em notificacoes (status: FAILED, motivo: reason)
+7. Na tabela admin, pedido aparece com linha vermelha (destaque)
+8. Se 5 falhas consecutivas → alerta nos logs
+
+
+9.3 FLUXO DE RESEND (MANUAL)
+-----------------------------
+1. Admin acessa painel e vê pedidos com destaque vermelho
+2. Admin clica no pedido → abre modal de detalhes
+3. Modal exibe histórico de notificações com falha destacada
+4. Admin clica em "Reenviar Códigos"
+5. Sistema valida pedido (PAID, telefone, bilhetes)
+6. Sistema tenta enviar SMS novamente
+7. Resultado registrado em notificacoes (tentativa #2)
+8. Auditoria registra: CODIGOS_REENVIADOS_BY_ADMIN
+9. Modal atualiza automaticamente com nova tentativa
+10. Se sucesso → linha do pedido volta ao normal (branca)
+11. Se falha → linha permanece vermelha
+
+
+9.4 FLUXO DE MONITORAMENTO (DASHBOARD)
+---------------------------------------
+1. Admin acessa widget de saúde SMS no dashboard
+2. Widget faz GET /api/v1/admin/notifications/sms/health
+3. Exibe métricas em tempo real:
+   - Taxa de sucesso: 99.22%
+   - Falhas consecutivas: 0
+   - Total de falhas hoje: 12
+   - Última falha: 14/12 10:15 (timeout)
+4. Se consecutiveFailures >= 5 → badge vermelho piscando
+5. Admin clica em "Ver pedidos afetados"
+6. Redirecionado para tabela filtrada (notificationStatus=FAILED)
+
+
+================================================================================
+10. CASOS DE USO
+================================================================================
+
+CASO DE USO 1: Créditos SMS Esgotados Durante Evento
+-----------------------------------------------------
+CENÁRIO:
+Durante um evento de alta demanda (500 pedidos/hora), os créditos SMS 
+esgotam às 18:30. Entre 18:30 e 19:00, 150 clientes não recebem códigos.
+
+DETECÇÃO:
+- 5ª falha consecutiva às 18:31
+- SmsHealthMonitor dispara alerta nos logs
+- Widget do dashboard mostra taxa de sucesso caindo para 70%
+
+RESOLUÇÃO:
+1. Admin vê alerta no dashboard
+2. Recarrega créditos SMS
+3. Filtra pedidos: notificationStatus=FAILED, data=hoje
+4. Identifica 150 pedidos afetados
+5. Script ou ação em massa: reenviar códigos para todos
+6. Sistema reenvia SMS para os 150 pedidos
+7. Taxa de sucesso volta para 99%+
+
+
+CASO DE USO 2: Problema de Conectividade Temporário
+----------------------------------------------------
+CENÁRIO:
+Servidor SMS do fornecedor fica instável por 15 minutos (10:00-10:15).
+Durante esse período, 45 SMS falham com "Connection timeout".
+
+DETECÇÃO:
+- 5ª falha consecutiva às 10:02
+- Alerta nos logs: "SMS health critical: 5 consecutive failures"
+- Última falha registrada: "Connection timeout"
+
+RESOLUÇÃO:
+1. Admin verifica dashboard e vê problema de conectividade
+2. Aguarda estabilização (10:15)
+3. Testa saúde do sistema (GET /sms/health)
+4. Verifica que healthy=true
+5. Filtra pedidos afetados (10:00-10:15, FAILED)
+6. Reenvia códigos em lote
+7. Todos os 45 pedidos recebem SMS com sucesso
+
+
+CASO DE USO 3: Cliente Individual Não Recebe SMS
+-------------------------------------------------
+CENÁRIO:
+Cliente liga para suporte: "Paguei mas não recebi meus códigos"
+Referência: 562113867
+
+RESOLUÇÃO:
+1. Atendente busca pedido no painel (referência: 562113867)
+2. Linha aparece com destaque vermelho
+3. Abre modal de detalhes
+4. Vê histórico:
+   - Tentativa #1: FAILED (10:30) - "Invalid phone number"
+   - Número estava errado: +244 91234567 (faltando dígito)
+5. Corrige telefone no sistema
+6. Clica "Reenviar Códigos"
+7. Tentativa #2: SUCCESS (10:35)
+8. Cliente recebe SMS imediatamente
+9. Linha do pedido volta ao normal
+
+
+================================================================================
+11. CONSIDERAÇÕES DE SEGURANÇA
+================================================================================
+
+11.1 AUTENTICAÇÃO E AUTORIZAÇÃO
+--------------------------------
+✓ Endpoint de resend requer JWT válido
+✓ Apenas usuários com role ADMIN podem reenviar
+✓ Validar permissões no backend (não confiar apenas no frontend)
+✓ Registrar userId em auditoria para rastreabilidade
+
+
+11.2 PROTEÇÃO DE DADOS SENSÍVEIS
+---------------------------------
+✓ Telefones mascarados em logs: +244 9XX***678
+✓ Telefones mascarados na UI (exceto no modal de detalhes)
+✓ Não expor dados de cartão de crédito
+✓ HTTPS obrigatório em produção
+
+
+11.3 RATE LIMITING
+-------------------
+✓ Limitar tentativas de resend por pedido: máximo 5/dia
+✓ Limitar tentativas de resend por admin: máximo 100/hora
+✓ Backend deve rejeitar requests abusivos (429 Too Many Requests)
+
+
+11.4 PREVENÇÃO DE ABUSO
+------------------------
+✓ Confirmar ação com dialog antes de reenviar
+✓ Desabilitar botão durante processamento
+✓ Cooldown de 1 minuto entre resends do mesmo pedido
+✓ Alertar admin se mesmo pedido for reenviado mais de 3 vezes
+
+
+================================================================================
+12. TESTES E VALIDAÇÃO
+================================================================================
+
+12.1 TESTES UNITÁRIOS (BACKEND)
+--------------------------------
+CLASSE: PedidoServiceTest
+
+testReenviarCodigosBilhetes_Success() {
+  // Given
+  Pedido pedido = criarPedidoPago();
+  
+  // When
+  pedidoService.reenviarCodigosBilhetes(pedido.getId());
+  
+  // Then
+  verify(notificationSender).sendTicketCodesSMS(...);
+  verify(smsHealthMonitor).recordSuccess();
+  
+  Notificacao notificacao = notificacaoRepository.findByPedidoId(pedido.getId()).get(0);
+  assertEquals(NotificationStatus.SUCCESS, notificacao.getStatus());
+}
+
+testReenviarCodigosBilhetes_PedidoNaoPago_ThrowsException() {
+  // Given
+  Pedido pedido = criarPedidoPendente();
+  
+  // When & Then
+  assertThrows(BusinessRuleException.class, () -> {
+    pedidoService.reenviarCodigosBilhetes(pedido.getId());
+  });
+}
+
+
+12.2 TESTES DE INTEGRAÇÃO (BACKEND)
+------------------------------------
+CLASSE: AdminControllerIntegrationTest
+
+testResendEndpoint_Success() {
+  // Arrange
+  Pedido pedido = criarPedidoPagoNoBanco();
+  String token = obterTokenAdmin();
+  
+  // Act
+  ResponseEntity<Map> response = restTemplate.exchange(
+    "/api/v1/admin/pedidos/" + pedido.getId() + "/reenviar-codigos",
+    HttpMethod.POST,
+    new HttpEntity<>(criarHeaders(token)),
+    Map.class
+  );
+  
+  // Assert
+  assertEquals(HttpStatus.OK, response.getStatusCode());
+  assertTrue((Boolean) response.getBody().get("success"));
+  
+  List<Notificacao> notificacoes = notificacaoRepository.findByPedidoId(pedido.getId());
+  assertTrue(notificacoes.size() >= 1);
+}
+
+
+12.3 TESTES E2E (FRONTEND)
+---------------------------
+TESTE: Reenvio de códigos via modal
+
+describe('PedidoDetailsModal - Resend', () => {
+  it('deve reenviar códigos com sucesso', async () => {
+    // Arrange
+    const pedido = mockPedidoComFalha();
+    render(<PedidoDetailsModal pedido={pedido} isOpen={true} />);
+    
+    // Act
+    const resendButton = screen.getByText('Reenviar Códigos');
+    fireEvent.click(resendButton);
+    
+    // Confirmar dialog
+    const confirmButton = screen.getByText('Confirmar');
+    fireEvent.click(confirmButton);
+    
+    // Assert
+    await waitFor(() => {
+      expect(screen.getByText('Códigos reenviados com sucesso')).toBeInTheDocument();
+    });
+    
+    expect(mockApiService.resendTicketCodes).toHaveBeenCalledWith(pedido.id);
+  });
+  
+  it('deve mostrar erro quando pedido não é PAID', async () => {
+    // Arrange
+    mockApiService.resendTicketCodes.mockRejectedValue({
+      response: { status: 400, data: { message: 'Pedido não está no estado PAID' } }
+    });
+    
+    render(<PedidoDetailsModal pedido={mockPedidoPendente()} isOpen={true} />);
+    
+    // Act
+    fireEvent.click(screen.getByText('Reenviar Códigos'));
+    fireEvent.click(screen.getByText('Confirmar'));
+    
+    // Assert
+    await waitFor(() => {
+      expect(screen.getByText('Pedido não está no estado PAID')).toBeInTheDocument();
+    });
+  });
+});
+
+
+12.4 CHECKLIST DE VALIDAÇÃO MANUAL
+-----------------------------------
+BACKEND:
+□ Endpoint /api/v1/admin/pedidos/{id}/reenviar-codigos responde 200
+□ Endpoint valida que pedido está PAID
+□ Endpoint valida que telefone existe
+□ Endpoint registra auditoria corretamente
+□ Notificação é salva na tabela notificacoes
+□ SmsHealthMonitor é atualizado corretamente
+□ Logs não expõem telefones completos
+
+FRONTEND:
+□ Tabela de pedidos mostra linhas vermelhas para pedidos com falha
+□ Modal abre ao clicar no pedido
+□ Histórico de notificações é exibido corretamente
+□ Botão "Reenviar Códigos" está visível e habilitado
+□ Confirmar ação antes de reenviar
+□ Botão fica desabilitado durante processamento
+□ Toast de sucesso aparece após resend bem-sucedido
+□ Toast de erro aparece em caso de falha
+□ Modal atualiza automaticamente após resend
+□ Linha do pedido atualiza na tabela após sucesso
+
+INTEGRAÇÃO:
+□ Fluxo completo: falha → detecção → resend → sucesso
+□ Dashboard de saúde SMS reflete estado correto
+□ Múltiplos resends são registrados corretamente
+□ Filtros de notificationStatus funcionam
+□ Paginação funciona com pedidos problemáticos
+
+
+================================================================================
+CHECKLIST DE IMPLEMENTAÇÃO
+================================================================================
+
+BACKEND:
+□ Criar tabela notificacoes (migration V18)
+□ Criar entidade Notificacao.java
+□ Criar repository NotificacaoRepository.java
+□ Modificar TelcoSmsNotificationProvider para salvar em notificacoes
+□ Modificar PedidoService.reenviarCodigosBilhetes para salvar tentativa
+□ Adicionar campo notificacoes em PedidoDTO
+□ Adicionar filtro notificationStatus em PedidoRepository
+□ Criar endpoint GET /api/v1/admin/pedidos/{id}/notificacoes
+□ Testar endpoints com Postman/Insomnia
+□ Validar logs e auditoria
+
+FRONTEND:
+□ Criar tipos TypeScript (notification.types.ts)
+□ Criar pedidoService.ts com métodos de API
+□ Criar hook usePedidos com filtro de notificações
+□ Criar componente NotificationStatusBadge
+□ Criar componente NotificationHistorySection
+□ Modificar PedidosTable para destacar linhas problemáticas
+□ Modificar PedidoDetailsModal para incluir histórico
+□ Criar componente ResendButton
+□ Implementar tratamento de erros
+□ Adicionar testes unitários
+□ Adicionar testes E2E
+
+DASHBOARD:
+□ Criar widget SmsHealthWidget
+□ Integrar com endpoint /api/v1/admin/notifications/sms/health
+□ Adicionar alertas visuais para consecutiveFailures >= 5
+□ Criar link para filtrar pedidos com falha
+
+DOCUMENTAÇÃO:
+□ Atualizar README do projeto
+□ Documentar endpoints na API docs
+□ Criar guia de uso para equipe de suporte
+□ Criar runbook para recuperação de falhas em massa
+
+
+================================================================================
+SUPORTE E MANUTENÇÃO
+================================================================================
+
+LOGS IMPORTANTES:
+- /var/log/arenaticket/application.log (SMS attempts)
+- /var/log/arenaticket/audit.log (Resend operations)
+- Dashboard Grafana: métricas de SMS
+
+COMANDOS ÚTEIS:
+# Ver logs de SMS em tempo real
+tail -f /var/log/arenaticket/application.log | grep "SMS"
+
+# Contar falhas de hoje
+grep "SMS.*FAILED" /var/log/arenaticket/application.log | grep "2025-12-14" | wc -l
+
+# Ver últimos 50 resends
+grep "CODIGOS_REENVIADOS_BY_ADMIN" /var/log/arenaticket/audit.log | tail -50
+
+CONTATOS:
+- Suporte TelcoSMS: suporte@telcosms.ao
+- Equipe Backend: backend@arenaticket.com
+- Equipe Frontend: frontend@arenaticket.com
+
+
+================================================================================
+FIM DO GUIA
+================================================================================
+
+Este documento fornece todas as diretrizes técnicas necessárias para
+implementar o sistema de resend e rastreamento de notificações no painel
+administrativo do ArenaTicket.
+
+Para dúvidas ou sugestões, contate a equipe de arquitetura.
+
+Versão: 1.0
+Data: 14 de dezembro de 2025

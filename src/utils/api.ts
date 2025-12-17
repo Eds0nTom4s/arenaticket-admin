@@ -17,6 +17,18 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    
+    // Tentar parsear JSON do erro para obter mensagem detalhada
+    try {
+      const errorData = JSON.parse(text)
+      // Formato Spring Boot: { timestamp, status, error, message, path }
+      if (errorData.message) {
+        throw new Error(errorData.message)
+      }
+    } catch (jsonError) {
+      // Se não for JSON válido, usa a mensagem original
+    }
+    
     throw new Error(`HTTP ${res.status}: ${text || res.statusText}`)
   }
   if (res.status === 204) return undefined as unknown as T

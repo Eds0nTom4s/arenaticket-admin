@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.local
+
+# AWS
+.aws-config/
+/tmp/

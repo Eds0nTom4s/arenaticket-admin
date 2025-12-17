@@ -111,15 +111,15 @@ onMounted(() => loadLogs())
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
       <div>
-        <h1 class="text-xl font-semibold">Auditoria e Logs do Sistema</h1>
-        <p class="text-sm text-[var(--color-text-secondary)] mt-1">
+        <h1 class="text-lg sm:text-xl font-semibold">Auditoria e Logs do Sistema</h1>
+        <p class="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-1">
           Histórico de ações realizadas no sistema
         </p>
       </div>
       <button 
-        class="btn-primary"
+        class="btn-primary w-full sm:w-auto"
         @click="showFilters = !showFilters"
       >
         {{ showFilters ? 'Ocultar' : 'Mostrar' }} Filtros
@@ -129,64 +129,65 @@ onMounted(() => loadLogs())
     <!-- Estatísticas Rápidas -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="card bg-blue-50 border-blue-200">
-        <div class="text-sm text-blue-600 mb-1">Total de Registros</div>
-        <div class="text-2xl font-bold text-blue-700">{{ store.totalElements }}</div>
+        <div class="text-xs sm:text-sm text-blue-600 mb-1">Total de Registros</div>
+        <div class="text-xl sm:text-2xl font-bold text-blue-700">{{ store.totalElements }}</div>
       </div>
       <div class="card bg-purple-50 border-purple-200">
-        <div class="text-sm text-purple-600 mb-1">Página Atual</div>
-        <div class="text-2xl font-bold text-purple-700">{{ currentPage + 1 }} / {{ store.totalPages || 1 }}</div>
+        <div class="text-xs sm:text-sm text-purple-600 mb-1">Página Atual</div>
+        <div class="text-xl sm:text-2xl font-bold text-purple-700">{{ currentPage + 1 }} / {{ store.totalPages || 1 }}</div>
       </div>
       <div class="card bg-green-50 border-green-200">
-        <div class="text-sm text-green-600 mb-1">Registros por Página</div>
-        <div class="text-2xl font-bold text-green-700">{{ pageSize }}</div>
+        <div class="text-xs sm:text-sm text-green-600 mb-1">Registros por Página</div>
+        <div class="text-xl sm:text-2xl font-bold text-green-700">{{ pageSize }}</div>
       </div>
     </div>
 
     <!-- Painel de Filtros -->
     <div v-if="showFilters" class="card">
-      <h3 class="font-semibold mb-3">Filtros Avançados</h3>
+      <h3 class="text-sm sm:text-base font-semibold mb-3">Filtros Avançados</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label class="block text-sm mb-1">Buscar</label>
+          <label class="block text-xs sm:text-sm mb-1">Buscar</label>
           <input 
             v-model="searchTerm" 
             type="text" 
-            class="input" 
+            class="input w-full" 
             placeholder="Usuário, ação, entidade..."
           />
         </div>
         <div>
-          <label class="block text-sm mb-1">Tipo de Ação</label>
-          <select v-model="acaoFilter" class="input">
+          <label class="block text-xs sm:text-sm mb-1">Tipo de Ação</label>
+          <select v-model="acaoFilter" class="input w-full">
             <option v-for="opt in acaoOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </option>
           </select>
         </div>
         <div>
-          <label class="block text-sm mb-1">Entidade</label>
-          <select v-model="entidadeFilter" class="input">
+          <label class="block text-xs sm:text-sm mb-1">Entidade</label>
+          <select v-model="entidadeFilter" class="input w-full">
             <option v-for="opt in entidadeOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </option>
           </select>
         </div>
       </div>
-      <div class="flex items-center gap-2 mt-4">
-        <button class="btn-primary" @click="applyFilters">Aplicar Filtros</button>
-        <button class="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50" @click="clearFilters">
+      <div class="flex flex-col sm:flex-row items-center gap-2 mt-4">
+        <button class="btn-primary w-full sm:w-auto" @click="applyFilters">Aplicar Filtros</button>
+        <button class="w-full sm:w-auto px-4 py-2 text-sm border rounded-lg hover:bg-gray-50" @click="clearFilters">
           Limpar Filtros
         </button>
       </div>
     </div>
 
-    <div v-if="store.error" class="card bg-red-50 border-red-200 text-red-600">
+    <div v-if="store.error" class="card bg-red-50 border-red-200 text-red-600 text-xs sm:text-sm">
       {{ store.error }}
     </div>
 
     <!-- Tabela de Logs -->
     <div class="card overflow-x-auto">
-      <table class="w-full text-sm">
+      <div class="min-w-[900px]">
+      <table class="w-full text-xs sm:text-sm">
         <thead>
           <tr class="text-left text-[var(--color-text-secondary)] border-b border-gray-200">
             <th class="py-3 px-2">Data/Hora</th>
@@ -204,7 +205,7 @@ onMounted(() => loadLogs())
             </td>
             <td class="py-3 px-2">
               <div class="font-medium">{{ log.usuario }}</div>
-              <div class="text-xs text-[var(--color-text-secondary)] font-mono">
+              <div v-if="log.usuarioId" class="text-xs text-[var(--color-text-secondary)] font-mono">
                 {{ log.usuarioId.slice(0, 8) }}
               </div>
             </td>
@@ -242,25 +243,29 @@ onMounted(() => loadLogs())
           </tr>
         </tbody>
       </table>
-      <div v-if="store.loading" class="text-sm text-[var(--color-text-secondary)] mt-4 text-center py-4">
+      </div>
+      <div class="sm:hidden text-xs text-gray-500 mt-2 text-center">
+        ← Deslize horizontalmente →
+      </div>
+      <div v-if="store.loading" class="text-xs sm:text-sm text-[var(--color-text-secondary)] mt-4 text-center py-4">
         Carregando registros de auditoria...
       </div>
       
       <!-- Paginação -->
-      <div v-if="store.totalPages > 1" class="flex items-center justify-between mt-4 pt-4 border-t">
-        <div class="text-sm text-[var(--color-text-secondary)]">
+      <div v-if="store.totalPages > 1" class="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t gap-3">
+        <div class="text-xs sm:text-sm text-[var(--color-text-secondary)] text-center sm:text-left">
           Página {{ currentPage + 1 }} de {{ store.totalPages }} ({{ store.totalElements }} registros)
         </div>
         <div class="flex items-center gap-2">
           <button 
-            class="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" 
+            class="px-3 py-1.5 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" 
             :disabled="currentPage === 0" 
             @click="prevPage"
           >
             ← Anterior
           </button>
           <button 
-            class="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" 
+            class="px-3 py-1.5 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" 
             :disabled="currentPage >= store.totalPages - 1" 
             @click="nextPage"
           >

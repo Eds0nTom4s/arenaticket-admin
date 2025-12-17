@@ -214,19 +214,19 @@ onMounted(async () => {
     </div>
 
     <div class="card bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-cyan)] text-white">
-      <div v-if="evento" class="flex items-start justify-between">
-        <div>
-          <h1 class="text-2xl font-semibold mb-2">{{ evento.titulo }}</h1>
-          <div class="flex items-center gap-4 text-sm text-white/90">
+      <div v-if="evento" class="flex flex-col sm:flex-row items-start justify-between gap-4">
+        <div class="flex-1">
+          <h1 class="text-xl sm:text-2xl font-semibold mb-2">{{ evento.titulo }}</h1>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-white/90">
             <div class="flex items-center gap-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                   d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               </svg>
-              <span>{{ evento.local }}</span>
+              <span class="truncate">{{ evento.local }}</span>
             </div>
             <div class="flex items-center gap-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -234,7 +234,7 @@ onMounted(async () => {
             </div>
           </div>
         </div>
-        <button class="px-4 py-2 bg-white text-[var(--color-primary)] rounded-lg font-medium hover:bg-gray-100 transition-colors" @click="newLote">
+        <button class="px-4 py-2 bg-white text-[var(--color-primary)] rounded-lg font-medium hover:bg-gray-100 transition-colors w-full sm:w-auto whitespace-nowrap" @click="newLote">
           + Novo Lote
         </button>
       </div>
@@ -249,72 +249,77 @@ onMounted(async () => {
 
     <!-- Tabela de Lotes -->
     <div class="card overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-[var(--color-text-secondary)] border-b border-gray-200">
-            <th class="py-3 px-2">Nome do Lote</th>
-            <th class="py-3 px-2">Preço</th>
-            <th class="py-3 px-2">Total</th>
-            <th class="py-3 px-2">Vendidos</th>
-            <th class="py-3 px-2">Disponíveis</th>
-            <th class="py-3 px-2">Início Venda</th>
-            <th class="py-3 px-2">Fim Venda</th>
-            <th class="py-3 px-2">Status</th>
-            <th class="py-3 px-2 w-40">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="lote in sorted" :key="lote.id" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-            <td class="py-3 px-2">
-              <div class="font-medium">{{ lote.nome }}</div>
-            </td>
-            <td class="py-3 px-2 font-semibold text-[var(--color-primary)]">
-              {{ formatCurrency(lote.preco) }}
-            </td>
-            <td class="py-3 px-2">{{ lote.quantidadeTotal }}</td>
-            <td class="py-3 px-2">
-              <span class="text-blue-600 font-medium">{{ lote.quantidadeVendida }}</span>
-            </td>
-            <td class="py-3 px-2">
-              <span :class="lote.quantidadeDisponivel > 0 ? 'text-green-600' : 'text-red-600'" class="font-medium">
-                {{ lote.quantidadeDisponivel }}
-              </span>
-            </td>
-            <td class="py-3 px-2 text-xs">{{ formatDate(lote.inicioVenda) }}</td>
-            <td class="py-3 px-2 text-xs">{{ formatDate(lote.fimVenda) }}</td>
-            <td class="py-3 px-2">
-              <span :class="getStatusColor(lote)" class="text-xs font-semibold">
-                {{ getStatusText(lote) }}
-              </span>
-            </td>
-            <td class="py-3 px-2">
-              <div class="flex items-center gap-2">
-                <button class="text-[var(--color-cyan)] hover:underline text-xs font-medium" @click="editLote(lote)">
-                  Editar
-                </button>
-                <button class="text-red-600 hover:underline text-xs font-medium" @click="deleteLote(lote.id)">
-                  Remover
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!lotesStore.loading && sorted.length === 0">
-            <td colspan="9" class="py-12 text-center">
-              <div class="text-[var(--color-text-secondary)]">
-                <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                <p class="text-base mb-2">Nenhum lote criado ainda</p>
-                <p class="text-sm mb-4">Crie o primeiro lote de bilhetes para este evento</p>
-                <button class="btn-primary" @click="newLote">Criar Primeiro Lote</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="min-w-[900px]">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[var(--color-text-secondary)] border-b border-gray-200">
+              <th class="py-3 px-2">Nome do Lote</th>
+              <th class="py-3 px-2">Preço</th>
+              <th class="py-3 px-2">Total</th>
+              <th class="py-3 px-2">Vendidos</th>
+              <th class="py-3 px-2">Disponíveis</th>
+              <th class="py-3 px-2">Início Venda</th>
+              <th class="py-3 px-2">Fim Venda</th>
+              <th class="py-3 px-2">Status</th>
+              <th class="py-3 px-2 w-40">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="lote in sorted" :key="lote.id" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="py-3 px-2">
+                <div class="font-medium">{{ lote.nome }}</div>
+              </td>
+              <td class="py-3 px-2 font-semibold text-[var(--color-primary)]">
+                {{ formatCurrency(lote.preco) }}
+              </td>
+              <td class="py-3 px-2">{{ lote.quantidadeTotal }}</td>
+              <td class="py-3 px-2">
+                <span class="text-blue-600 font-medium">{{ lote.quantidadeVendida }}</span>
+              </td>
+              <td class="py-3 px-2">
+                <span :class="lote.quantidadeDisponivel > 0 ? 'text-green-600' : 'text-red-600'" class="font-medium">
+                  {{ lote.quantidadeDisponivel }}
+                </span>
+              </td>
+              <td class="py-3 px-2 text-xs">{{ formatDate(lote.inicioVenda) }}</td>
+              <td class="py-3 px-2 text-xs">{{ formatDate(lote.fimVenda) }}</td>
+              <td class="py-3 px-2">
+                <span :class="getStatusColor(lote)" class="text-xs font-semibold">
+                  {{ getStatusText(lote) }}
+                </span>
+              </td>
+              <td class="py-3 px-2">
+                <div class="flex items-center gap-2">
+                  <button class="text-[var(--color-cyan)] hover:underline text-xs font-medium" @click="editLote(lote)">
+                    Editar
+                  </button>
+                  <button class="text-red-600 hover:underline text-xs font-medium" @click="deleteLote(lote.id)">
+                    Remover
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!lotesStore.loading && sorted.length === 0">
+              <td colspan="9" class="py-12 text-center">
+                <div class="text-[var(--color-text-secondary)]">
+                  <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <p class="text-base mb-2">Nenhum lote criado ainda</p>
+                  <p class="text-sm mb-4">Crie o primeiro lote de bilhetes para este evento</p>
+                  <button class="btn-primary" @click="newLote">Criar Primeiro Lote</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div v-if="lotesStore.loading" class="text-sm text-[var(--color-text-secondary)] mt-4 text-center py-4">
         Carregando lotes...
+      </div>
+      <div class="text-xs text-gray-500 mt-2 px-2 sm:hidden">
+        Deslize horizontalmente para ver todas as colunas →
       </div>
     </div>
 

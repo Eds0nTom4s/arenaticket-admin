@@ -25,6 +25,7 @@ export const usePedidosStore = defineStore('pedidos', {
       dataFim?: string
       page?: number
       size?: number
+      sort?: string
     }) {
       this.loading = true
       this.error = null
@@ -35,6 +36,7 @@ export const usePedidosStore = defineStore('pedidos', {
         if (params?.dataFim) query.append('dataFim', params.dataFim)
         if (params?.page !== undefined) query.append('page', String(params.page))
         if (params?.size !== undefined) query.append('size', String(params.size))
+        if (params?.sort) query.append('sort', params.sort)
 
         const response = await api<any>(`/admin/pedidos?${query.toString()}`)
         

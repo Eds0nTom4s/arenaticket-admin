@@ -16,7 +16,7 @@ Painel administrativo do sistema ArenaTicket. Interface web independente para ge
   - `assets/`: imagens e assets em geral
   - `components/`: componentes reutilizáveis
   - `layouts/`: layouts de páginas (ex.: BaseLayout)
-  - `pages/`: páginas do app (Login, Dashboard, Eventos, Lotes, Pedidos, Auditoria)
+  - `pages/`: páginas do app (Login, Dashboard, Eventos, Lotes, Pedidos, Auditoria, Check-In, VisualizarBilhete, Porteiro)
   - `router/`: configuração de rotas
   - `store/`: estado global (Pinia) - auth, eventos, lotes, pedidos
   - `styles/`: estilos globais (Tailwind)
@@ -27,30 +27,59 @@ Painel administrativo do sistema ArenaTicket. Interface web independente para ge
 
 ## 🚀 Como Executar
 
-### 1. Instalar dependências
+### Desenvolvimento Local
+
+#### 1. Instalar dependências
 ```bash
 npm install
 ```
 
-### 2. Configurar variáveis de ambiente
-Copie `.env.example` para `.env` e ajuste a URL da API:
-```bash
-cp .env.example .env
-```
-
-Edite `.env`:
+#### 2. Configurar variáveis de ambiente
+Crie um arquivo `.env` para desenvolvimento:
 ```env
 VITE_API_BASE_URL=http://localhost:8080/api/v1
 ```
 
-### 3. Rodar em modo desenvolvimento
+#### 3. Rodar em modo desenvolvimento
 ```bash
 npm run dev
 ```
 
 A aplicação inicia em: **http://localhost:3000**
 
-### 4. Build para produção
+### Deploy em Produção (AWS)
+
+#### 🌐 Domínio
+- **Frontend**: https://admin.arenaticket.gdse.ao
+- **API**: https://api.arenaticket.gdse.ao
+
+#### 📋 Pré-requisitos
+- AWS CLI instalado e configurado
+- Certificado SSL no ACM (us-east-1) para `admin.arenaticket.gdse.ao`
+- Acesso ao Route 53 para configurar DNS
+
+#### 🚀 Deploy Rápido
+
+**Opção 1: Script Interativo (Recomendado)**
+```bash
+./quick-deploy.sh
+```
+
+**Opção 2: Deploy Manual**
+```bash
+# 1. Deploy inicial (primeira vez)
+./deploy.sh
+
+# 2. Configurar CloudFront
+./setup-cloudfront.sh
+
+# 3. Deploys subsequentes
+npm run deploy
+```
+
+**Documentação completa de deploy**: Consulte [`DEPLOY.md`](./DEPLOY.md) para instruções detalhadas.
+
+#### 📦 Build para produção
 ```bash
 npm run build
 ```
@@ -63,16 +92,34 @@ O login utiliza **telefone** e **senha**:
   - Telefone: `923000001`
   - Password: `senha123`
 
+### Perfis de Usuário
+
+O sistema suporta diferentes perfis com controle de acesso:
+
+#### ADMIN (Administrador)
+- Acesso completo ao sistema
+- Páginas disponíveis: Dashboard, Eventos, Lotes, Pedidos, Check-In, Porteiro, Bilhetes, Auditoria
+- Pode gerenciar eventos, lotes, pedidos e visualizar logs de auditoria
+
+#### PORTEIRO
+- Acesso restrito às funcionalidades de validação de bilhetes
+- Páginas disponíveis: Check-In, Porteiro, Bilhetes
+- Interface otimizada para validação rápida na entrada do evento
+- Scanner de QR Code integrado para leitura automática
+
+**Redirecionamento Automático**: Usuários são automaticamente direcionados para páginas apropriadas ao seu perfil após login.
+
 ## 🧱 Funcionalidades
 
 ### ✅ Implementadas
 - **Login**: Autenticação via `/auth/login` com JWT (telefone + senha)
-- **Layout**: Sidebar fixa e cabeçalho com logout
-- **Dashboard**: Cards com métricas mockadas
-- **Eventos**: CRUD completo
+- **Controle de Acesso por Perfil**: Sistema de roles (ADMIN, PORTEIRO) com proteção de rotas
+- **Layout**: Sidebar dinâmica baseada em permissões e cabeçalho com logout
+- **Dashboard**: Cards com métricas mockadas (apenas ADMIN)
+- **Eventos**: CRUD completo (apenas ADMIN)
   - Campos: título, descrição, local, dataEvento, duracaoMinutos, bannerUrl, abertoParaVenda
   - Upload de banner (multipart/form-data)
-- **Lotes**: CRUD completo com experiência fluida
+- **Lotes**: CRUD completo com experiência fluida (apenas ADMIN)
   - Seleção visual de eventos por cards
   - Formulário com formato europeu dd/MM/yyyy e hora HH:mm
   - Conversão automática para ISO 8601 com timezone +01:00
@@ -80,14 +127,20 @@ O login utiliza **telefone** e **senha**:
   - Validação de data fim posterior ao início
   - Tabela com status dinâmico (Aguardando/Ativo/Esgotado/Encerrado)
   - Navegação intuitiva com breadcrumb
-- **Pedidos**: Listagem com filtro por status e paginação
+- **Pedidos**: Listagem com filtro por status e paginação (apenas ADMIN)
+- **Check-In**: Validação e confirmação de entrada de bilhetes (ADMIN e PORTEIRO)
+- **Porteiro**: Interface otimizada com scanner QR integrado (ADMIN e PORTEIRO)
+  - Scanner de QR Code com html5-qrcode
+  - Validação e confirmação rápida
+  - Histórico de últimos check-ins
+- **Visualizar Bilhete**: Consulta de bilhetes por código (ADMIN e PORTEIRO)
+- **Auditoria**: Logs do sistema com filtros (apenas ADMIN)
 
 ### 🔜 Próximas Etapas
-- Página de Auditoria (logs do sistema)
 - Relatório de vendas
-- Validação de bilhetes (QR Code scanner)
 - Dashboard com métricas reais da API
-- Integração completa com backend
+- Integração completa com backend para métricas agregadas
+- Melhorias no scanner QR (auto-foco, múltiplas câmeras)
 
 ## 🧭 Identidade Visual
 
@@ -133,16 +186,25 @@ Tema escuro minimalista com acentos ciano, inspirado em dashboards modernos.
 Consulte `src/types/evento.ts` para ver as interfaces TypeScript completas:
 - `Evento`: dataEvento, duracaoMinutos, dataFim (calculado), bannerUrl
 - `LoteBilhete`: nome, preco, quantidadeTotal, quantidadeDisponivel
-- `Pedido`: status (PENDING/PAID/CANCELLED/EXPIRED), total, compradorNome
-- `Bilhete`: codigoTicket, codigoQR, status
+- `Pedido`: status, valorTotal, método de pagamento, bilhetes gerados
+- `Bilhete`: codigoTicket, codigoTicketCompact, codigoQR (Base64), status, timestamps
 
 ## 🛠️ Scripts disponíveis
 
 ```bash
-npm run dev        # Servidor de desenvolvimento (porta 3000)
-npm run build      # Build para produção
-npm run preview    # Preview do build de produção
-npm run typecheck  # Verificar tipos TypeScript
+npm run dev            # Servidor de desenvolvimento (porta 3000)
+npm run build          # Build para produção
+npm run preview        # Preview do build de produção
+npm run typecheck      # Verificar tipos TypeScript
+npm run deploy         # Deploy para AWS (produção)
+npm run deploy:setup   # Configurar CloudFront (primeira vez)
+```
+
+Também disponíveis:
+```bash
+./quick-deploy.sh      # Menu interativo de deploy
+./deploy.sh            # Deploy direto para S3/CloudFront
+./setup-cloudfront.sh  # Criar distribuição CloudFront
 ```
 
 ## ✅ Critérios de Aceitação
@@ -169,5 +231,17 @@ Todos os tipos estão centralizados em `src/types/evento.ts` e refletem a docume
 ---
 
 **Desenvolvido para:** GDSE - Grémio Desportivo Sagrada Esperança  
-**Versão:** 1.0.0  
-**Data:** 15/11/2025
+**Versão:** 1.2.0  
+**Data:** 23/11/2025
+
+### 🔄 Novidades v1.2.0
+- Scanner de QR Code integrado na página Porteiro usando `html5-qrcode`.
+- Sistema de controle de acesso por perfil (ADMIN, PORTEIRO).
+- Proteção de rotas baseada em roles com redirecionamento automático.
+- Sidebar dinâmica que exibe apenas opções permitidas para cada perfil.
+- Indicador visual de perfil no cabeçalho.
+
+### 🔄 Novidades v1.1.0
+- Página `VisualizarBilhete` para consulta direta por código.
+- Página `Porteiro` otimizada para validação e confirmação rápida de entrada.
+- Extensão da store de check-in com método `buscarBilhetePorCodigo` sem efeitos colaterais.
