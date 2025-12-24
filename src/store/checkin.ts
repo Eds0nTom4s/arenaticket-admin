@@ -22,15 +22,20 @@ export const useCheckInStore = defineStore('checkin', {
     ultimosCheckIns: [],
   }),
   actions: {
-    async validarBilhete(codigo: string) {
+    async validarBilhete(codigo: string, eventoId?: string) {
       this.loading = true
       this.error = null
       this.bilhete = null
       
       try {
+        const payload: any = { codigoTicket: codigo }
+        if (eventoId) {
+          payload.eventoId = eventoId
+        }
+        
         const response = await api<CheckInResponse>(`/porteiro/checkin`, {
           method: 'POST',
-          body: JSON.stringify({ codigoTicket: codigo }),
+          body: JSON.stringify(payload),
         })
         
         if (response.bilhete) {

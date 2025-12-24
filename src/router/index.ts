@@ -75,8 +75,14 @@ router.beforeEach((to) => {
   
   // Permitir acesso à página de login sem autenticação
   if (to.path === '/login') {
-    // Se já estiver autenticado, redirecionar para dashboard
+    // Se já estiver autenticado, redirecionar para página apropriada por role
     if (auth.isAuthenticated) {
+      if (auth.userRole === 'VENDEDOR') {
+        return { path: '/vendas' }
+      }
+      if (auth.userRole === 'PORTEIRO') {
+        return { path: '/porteiro' }
+      }
       return { path: '/dashboard' }
     }
     return true
@@ -88,12 +94,31 @@ router.beforeEach((to) => {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
 
+  // Redirect automático para VENDEDOR na rota raiz
+  if (to.path === '/' || to.path === '/dashboard') {
+    if (auth.userRole === 'VENDEDOR') {
+      return { path: '/vendas' }
+    }
+    if (auth.userRole === 'PORTEIRO') {
+      return { path: '/porteiro' }
+    }
+  }
+
+  // VENDEDOR só pode acessar /vendas
+  if (auth.userRole === 'VENDEDOR' && to.path !== '/vendas') {
+    console.warn('Vendedor tentando acessar área restrita, redirecionando para /vendas')
+    return { path: '/vendas' }
+  }
+
   // Verificar permissões por role
   const allowedRoles = to.meta.allowedRoles as string[] | undefined
   if (allowedRoles && allowedRoles.length > 0 && !auth.canAccessRoute(allowedRoles)) {
     console.warn(`Acesso negado: role ${auth.userRole} não tem permissão para ${to.path}`)
     // Redirecionar para página apropriada de acordo com role
-    if (auth.isPorteiro) {
+    if (auth.userRole === 'VENDEDOR') {
+      return { path: '/vendas' }
+    }
+    if (auth.userRole === 'PORTEIRO') {
       return { path: '/porteiro' }
     }
     return { path: '/dashboard' }

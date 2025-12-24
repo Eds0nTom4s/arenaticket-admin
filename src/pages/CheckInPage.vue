@@ -247,7 +247,7 @@ async function confirmarCheckIn() {
   
   try {
     // Agora sim fazer o POST para check-in
-    await store.validarBilhete(bilheteConsultado.value.codigoTicketCompact)
+    await store.validarBilhete(bilheteConsultado.value.codigoTicketCompact, bilheteConsultado.value.eventoId)
     if (store.bilhete) {
       alert('✅ Check-in confirmado com sucesso!')
       limparResultado()

@@ -394,7 +394,7 @@ async function confirmarCheckIn() {
   
   try {
     // POST /porteiro/checkin - FAZ O CHECK-IN
-    await store.validarBilhete(bilhete.value.codigoTicketCompact)
+    await store.validarBilhete(bilhete.value.codigoTicketCompact, bilhete.value.eventoId)
     
     // Limpar IMEDIATAMENTE após check-in bem-sucedido
     // Não mostrar o bilhete com status "USED"

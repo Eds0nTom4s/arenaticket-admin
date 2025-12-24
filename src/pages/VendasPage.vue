@@ -3,10 +3,20 @@ import { onMounted, ref, computed, watch } from 'vue'
 import { useVendasStore } from '@/store/vendas'
 import { useAuthStore } from '@/store/auth'
 import BilheteImpressao from '@/components/BilheteImpressao.vue'
+import { sunmiPrinter } from '@/utils/sunmiPrinter'
 import type { Evento, LoteBilhete, MetodoPagamento } from '@/types/evento'
 
 const vendasStore = useVendasStore()
 const authStore = useAuthStore()
+
+// Detecção de impressora SUNMI
+const impressoraSUNMI = ref(sunmiPrinter.isAvailable())
+const imprimindo = ref(false)
+
+// Debug: verificar detecção do SUNMI
+console.log('🖨️ SUNMI detectado?', impressoraSUNMI.value)
+console.log('📱 window.sunmi existe?', typeof window.sunmi !== 'undefined')
+console.log('🔍 User Agent:', navigator.userAgent)
 
 // Estado do formulário
 const eventoSelecionado = ref<Evento | null>(null)
@@ -48,8 +58,15 @@ async function carregarEventos() {
 
 async function carregarLotes() {
   if (eventoSelecionado.value) {
-    lotes.value = await vendasStore.listarLotesDisponiveis(eventoSelecionado.value.id)
+    const todosLotes = await vendasStore.listarLotesDisponiveis(eventoSelecionado.value.id)
+    // Filtrar novamente no frontend como proteção adicional
+    lotes.value = todosLotes.filter(lote => lote.eventoId === eventoSelecionado.value!.id)
     loteSelecionado.value = null // Resetar lote ao trocar evento
+    
+    console.log(`Lotes carregados para evento ${eventoSelecionado.value.id}:`, lotes.value.length)
+  } else {
+    lotes.value = []
+    loteSelecionado.value = null
   }
 }
 
@@ -96,8 +113,11 @@ async function realizarVenda() {
       pontoVenda: pontoVenda.value
     })
     
-    // Mostrar modal de impressão
-    mostrarModalImpressao.value = true
+    // Imprimir automaticamente após venda bem-sucedida
+    await imprimirBilhetes()
+    
+    // Limpar formulário e continuar
+    limparFormulario()
   } catch (error: any) {
     // Exibir erro formatado do store
     alert(vendasStore.error || 'Erro ao realizar venda')
@@ -106,9 +126,7 @@ async function realizarVenda() {
   }
 }
 
-function fecharModalELimpar() {
-  mostrarModalImpressao.value = false
-  
+function limparFormulario() {
   // Limpar formulário
   compradorNome.value = ''
   compradorTelefone.value = ''
@@ -119,6 +137,15 @@ function fecharModalELimpar() {
   
   // Limpar última venda do store
   vendasStore.limparUltimaVenda()
+}
+
+function fecharModalImpressao() {
+  mostrarModalImpressao.value = false
+  limparFormulario()
+}
+
+function imprimirViaBrowser() {
+  window.print()
 }
 
 function formatCurrency(value: number) {
@@ -141,11 +168,48 @@ function formatDate(dateString: string) {
   })
 }
 
-function imprimirBilhetes() {
-  // Usa o window.print() do navegador
-  // O CSS @media print do BilheteImpressao.vue cuidará do layout de impressão
-  window.print()
+async function imprimirBilhetes() {
+  if (!vendasStore.ultimaVenda?.bilhetes) {
+    console.warn('Nenhum bilhete para imprimir')
+    return
+  }
+
+  console.log('🖨️ Iniciando impressão...', {
+    sunmiDisponivel: impressoraSUNMI.value,
+    quantidadeBilhetes: vendasStore.ultimaVenda.bilhetes.length,
+    windowSunmi: typeof window.sunmi
+  })
+
+  // Se SUNMI disponível, usar impressora térmica
+  if (impressoraSUNMI.value) {
+    try {
+      imprimindo.value = true
+      console.log('📄 Imprimindo via SUNMI...')
+      await sunmiPrinter.imprimirLote(vendasStore.ultimaVenda.bilhetes)
+      
+      // Abrir gaveta se pagamento foi em dinheiro
+      if (metodoPagamento.value === 'CASH') {
+        console.log('💰 Abrindo gaveta de dinheiro...')
+        sunmiPrinter.abrirGaveta()
+      }
+      
+      console.log(`✅ ${vendasStore.ultimaVenda.bilhetes.length} bilhete(s) impresso(s)`)
+      alert(`✅ ${vendasStore.ultimaVenda.bilhetes.length} bilhete(s) impresso(s) com sucesso!`)
+    } catch (error: any) {
+      console.error('❌ Erro ao imprimir:', error)
+      alert('❌ Erro na impressão: ' + error.message)
+    } finally {
+      imprimindo.value = false
+    }
+  } else {
+    console.warn('⚠️ SUNMI não detectado, usando fallback de navegador')
+    // Fallback: usa window.print() do navegador
+    // O CSS @media print do BilheteImpressao.vue cuidará do layout de impressão
+    mostrarModalImpressao.value = true // Só mostra modal se não for SUNMI
+  }
 }
+
+
 
 // Watchers
 watch(eventoSelecionado, () => {
@@ -385,11 +449,12 @@ onMounted(() => {
     </div>
 
     <!-- Modal de Impressão -->
-    <div v-if="mostrarModalImpressao && vendasStore.ultimaVenda" class="modal-overlay" @click.self="fecharModalELimpar">
+    <!-- Modal de Impressão (só para navegadores sem SUNMI) -->
+    <div v-if="mostrarModalImpressao && vendasStore.ultimaVenda" class="modal-overlay" @click.self="fecharModalImpressao">
       <div class="modal-content">
         <div class="modal-header">
           <h3>✅ Venda Realizada com Sucesso!</h3>
-          <button class="btn-close" @click="fecharModalELimpar">×</button>
+          <button class="btn-close" @click="fecharModalImpressao">×</button>
         </div>
         <div class="modal-body">
           <p class="modal-info">
@@ -404,8 +469,8 @@ onMounted(() => {
             <BilheteImpressao :bilhetes="vendasStore.ultimaVenda.bilhetes" />
           </div>
           
-          <!-- Botão de imprimir -->
-          <button class="btn-imprimir" @click="imprimirBilhetes">
+          <!-- Botão de Impressão (window.print) -->
+          <button class="btn-imprimir" @click="imprimirViaBrowser">
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
@@ -413,7 +478,7 @@ onMounted(() => {
           </button>
         </div>
         <div class="modal-footer">
-          <button class="btn-continuar" @click="fecharModalELimpar">
+          <button class="btn-continuar" @click="fecharModalImpressao">
             Continuar Vendendo
           </button>
         </div>
@@ -879,26 +944,85 @@ onMounted(() => {
   }
 }
 
-.btn-imprimir {
-  width: 100%;
+/* Indicador SUNMI */
+.sunmi-indicator {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+.sunmi-indicator .icon-check {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* Ações de Impressão */
+.acoes-impressao {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.btn-imprimir,
+.btn-recibo {
+  flex: 1;
   padding: 1rem;
-  background: #3b82f6;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 1.5rem;
   transition: all 0.2s;
 }
 
-.btn-imprimir:hover {
+.btn-imprimir {
+  background: #3b82f6;
+}
+
+.btn-imprimir:hover:not(:disabled) {
   background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-recibo {
+  background: #6366f1;
+}
+
+.btn-recibo:hover:not(:disabled) {
+  background: #4f46e5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.btn-imprimir:disabled,
+.btn-recibo:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Animação de spinning */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
 .btn-imprimir svg {
