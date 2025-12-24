@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { api } from '@/utils/api'
-import type { Evento, EventoCreate, EventoUpdate } from '@/types/evento'
+import type { Evento, EventoCreate, EventoUpdate, CheckInToggleRequest, CheckInToggleResponse, CheckInStatusResponse } from '@/types/evento'
 
 interface State {
   itens: Evento[]
@@ -45,6 +45,26 @@ export const useEventosStore = defineStore('eventos', {
     async remover(id: string) {
       await api<void>(`/admin/eventos/${id}`, { method: 'DELETE' })
       this.itens = this.itens.filter((e) => e.id !== id)
+    },
+
+    // Novos métodos para controle de check-in
+    async toggleCheckIn(id: string, payload: CheckInToggleRequest): Promise<CheckInToggleResponse> {
+      const response = await api<CheckInToggleResponse>(`/admin/eventos/${id}/checkin`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+      
+      // Atualizar o item na lista local
+      const idx = this.itens.findIndex((e) => e.id === id)
+      if (idx >= 0 && this.itens[idx]) {
+        this.itens[idx].checkinAberto = payload.aberto
+      }
+      
+      return response
+    },
+
+    async getCheckInStatus(): Promise<CheckInStatusResponse> {
+      return await api<CheckInStatusResponse>('/admin/eventos/checkin-status')
     },
   },
 })

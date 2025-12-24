@@ -11,12 +11,42 @@ export interface Evento {
   dataFim: string // ISO 8601 - calculado automaticamente
   bannerUrl?: string
   abertoParaVenda: boolean
+  checkinAberto?: boolean // Novo campo para controlar check-in
   createdAt: string // ISO 8601
   updatedAt?: string // ISO 8601
 }
 
 export type EventoCreate = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'dataFim'>
 export type EventoUpdate = Partial<EventoCreate>
+
+// Novos tipos para controle de check-in
+export interface CheckInToggleRequest {
+  aberto: boolean
+}
+
+export interface CheckInToggleResponse {
+  sucesso: boolean
+  mensagem: string
+  eventoId: string
+  eventoTitulo: string
+  checkinAberto: boolean
+}
+
+export interface EventoCheckInStatus {
+  id: string
+  titulo: string
+  dataEvento: string
+  dataFim: string
+  checkinAberto: boolean
+  isTerminado: boolean
+  isFuturo: boolean
+  isEmAndamento: boolean
+}
+
+export interface CheckInStatusResponse {
+  total: number
+  eventos: EventoCheckInStatus[]
+}
 
 export interface LoteBilhete {
   id: string

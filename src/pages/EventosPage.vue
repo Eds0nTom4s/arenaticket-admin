@@ -10,6 +10,7 @@ const isEditing = ref(false)
 const currentId = ref<string | null>(null)
 const uploading = ref(false)
 const bannerFile = ref<File | null>(null)
+const togglingCheckIn = ref<string | null>(null)
 
 const form = reactive({
   titulo: '',
@@ -101,6 +102,22 @@ async function deleteEvento(id: string) {
   }
 }
 
+async function toggleCheckIn(eventoId: string, abrir: boolean) {
+  if (togglingCheckIn.value) return // Evitar múltiplas requisições simultâneas
+  
+  try {
+    togglingCheckIn.value = eventoId
+    const response = await store.toggleCheckIn(eventoId, { aberto: abrir })
+    
+    // Mostrar feedback de sucesso
+    alert(response.mensagem || `Check-in ${abrir ? 'aberto' : 'fechado'} com sucesso`)
+  } catch (error: any) {
+    alert(error.message || 'Erro ao alterar status do check-in')
+  } finally {
+    togglingCheckIn.value = null
+  }
+}
+
 const sorted = computed(() =>
   [...store.itens].sort((a, b) => (a.dataEvento > b.dataEvento ? -1 : 1))
 )
@@ -129,7 +146,8 @@ onMounted(() => store.listar())
               <th class="py-2 px-2">Local</th>
               <th class="py-2 px-2">Data do Evento</th>
               <th class="py-2 px-2">Duração</th>
-              <th class="py-2 px-2">Aberto</th>
+              <th class="py-2 px-2">Vendas</th>
+              <th class="py-2 px-2">Check-in</th>
               <th class="py-2 px-2 w-48">Ações</th>
             </tr>
           </thead>
@@ -144,6 +162,25 @@ onMounted(() => store.listar())
                   {{ e.abertoParaVenda ? 'Sim' : 'Não' }}
                 </span>
               </td>
+              <td class="py-2 px-2">
+                <div class="flex items-center space-x-2">
+                  <span :class="e.checkinAberto ? 'text-green-600' : 'text-red-600'">
+                    {{ e.checkinAberto ? 'Aberto' : 'Fechado' }}
+                  </span>
+                  <button 
+                    :class="[
+                      'px-2 py-1 text-xs rounded transition-colors',
+                      e.checkinAberto 
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    ]"
+                    @click="toggleCheckIn(e.id, !e.checkinAberto)"
+                    :disabled="togglingCheckIn === e.id"
+                  >
+                    {{ togglingCheckIn === e.id ? '...' : (e.checkinAberto ? 'Fechar' : 'Abrir') }}
+                  </button>
+                </div>
+              </td>
               <td class="py-2 px-2 space-x-2">
                 <button class="text-[var(--color-cyan)] hover:underline" @click="$router.push(`/eventos/${e.id}/lotes`)">
                   Lotes
@@ -153,7 +190,7 @@ onMounted(() => store.listar())
               </td>
             </tr>
             <tr v-if="!store.loading && store.itens.length === 0">
-              <td colspan="6" class="py-6 text-center text-[var(--color-text-secondary)]">Nenhum evento</td>
+              <td colspan="7" class="py-6 text-center text-[var(--color-text-secondary)]">Nenhum evento</td>
             </tr>
           </tbody>
         </table>
