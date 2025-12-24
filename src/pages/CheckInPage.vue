@@ -135,6 +135,77 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de Sucesso do Check-In -->
+    <div v-if="mostrarModalSucesso" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="fecharModalSucesso">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">✅ Check-in Realizado!</h3>
+            <p class="text-sm text-gray-600 mb-4">{{ mensagemSucesso }}</p>
+            
+            <div v-if="bilheteCheckIn" class="bg-green-50 rounded p-3 space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Código:</span>
+                <span class="font-mono font-semibold text-green-800">{{ bilheteCheckIn.codigoTicketCompact }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Comprador:</span>
+                <span class="font-medium text-green-800">{{ bilheteCheckIn.compradorNome }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Telefone:</span>
+                <span class="text-green-800">{{ bilheteCheckIn.compradorTelefone }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end">
+          <button @click="fecharModalSucesso" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Erro do Check-In -->
+    <div v-if="mostrarModalErro" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="fecharModalErro">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">❌ Erro no Check-in</h3>
+            <p class="text-sm text-gray-600 mb-4">{{ mensagemErro }}</p>
+            
+            <div class="bg-red-50 rounded p-3 text-sm text-red-800">
+              <div class="font-medium mb-1">O que pode ter acontecido:</div>
+              <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Bilhete já foi utilizado</li>
+                <li>Evento não permite check-in no momento</li>
+                <li>Problema de conexão com o servidor</li>
+                <li>Código do bilhete inválido</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end">
+          <button @click="fecharModalErro" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -148,6 +219,13 @@ const codigoInput = ref<HTMLInputElement>()
 const processandoCheckIn = ref(false)
 const mostrarModal = ref(false)
 const bilheteConsultado = ref<any>(null)
+
+// Novos estados para modais de feedback
+const mostrarModalSucesso = ref(false)
+const mostrarModalErro = ref(false)
+const mensagemSucesso = ref('')
+const mensagemErro = ref('')
+const bilheteCheckIn = ref<any>(null)
 
 onMounted(() => {
   // Auto-focus no input
@@ -249,14 +327,32 @@ async function confirmarCheckIn() {
     // Agora sim fazer o POST para check-in
     await store.validarBilhete(bilheteConsultado.value.codigoTicketCompact, bilheteConsultado.value.eventoId)
     if (store.bilhete) {
-      alert('✅ Check-in confirmado com sucesso!')
+      // Mostrar modal de sucesso
+      bilheteCheckIn.value = bilheteConsultado.value
+      mensagemSucesso.value = `Check-in realizado com sucesso para o ticket ${bilheteConsultado.value.codigoTicketCompact} - ${bilheteConsultado.value.compradorNome}`
+      mostrarModalSucesso.value = true
+      
+      // Limpar dados
       limparResultado()
     }
   } catch (error: any) {
-    alert('❌ ' + (error.message || 'Erro ao fazer check-in'))
+    // Mostrar modal de erro
+    mensagemErro.value = error.message || 'Erro ao fazer check-in. Tente novamente.'
+    mostrarModalErro.value = true
   } finally {
     processandoCheckIn.value = false
   }
+}
+
+function fecharModalSucesso() {
+  mostrarModalSucesso.value = false
+  bilheteCheckIn.value = null
+  codigoInput.value?.focus()
+}
+
+function fecharModalErro() {
+  mostrarModalErro.value = false
+  mensagemErro.value = ''
 }
 
 function cancelarCheckIn() {
