@@ -32,11 +32,23 @@ export const useCheckInStore = defineStore('checkin', {
         const response = await api<Bilhete>(`/porteiro/validar`, {
           method: 'POST',
           body: JSON.stringify({ codigoTicket: codigo }),
-        }, { extractDataOnError: true })
+        })
         
         this.bilhete = response
         return response
       } catch (e: any) {
+        // Se a validação falhar, tentar consultar o bilhete diretamente
+        // Isso nos dá os dados completos do bilhete mesmo que já tenha sido utilizado
+        try {
+          const bilheteConsultado = await this.consultarBilhete(codigo)
+          if (bilheteConsultado) {
+            this.bilhete = bilheteConsultado
+            return bilheteConsultado
+          }
+        } catch (consultaError) {
+          // Se a consulta também falhar, continua com o erro original
+        }
+        
         this.error = e.message || 'Erro ao validar bilhete'
         throw e
       } finally {
