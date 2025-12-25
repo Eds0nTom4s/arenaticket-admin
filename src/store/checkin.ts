@@ -32,7 +32,7 @@ export const useCheckInStore = defineStore('checkin', {
         const response = await api<Bilhete>(`/porteiro/validar`, {
           method: 'POST',
           body: JSON.stringify({ codigoTicket: codigo }),
-        })
+        }, { extractDataOnError: true })
         
         this.bilhete = response
         return response

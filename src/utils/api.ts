@@ -2,7 +2,7 @@ import { useAuthStore } from '@/store/auth'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit, options?: { extractDataOnError?: boolean }): Promise<T> {
   const auth = useAuthStore()
   const headers = {
     'Content-Type': 'application/json',
@@ -17,6 +17,50 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    
+    // Para endpoints específicos, tentar extrair dados mesmo em caso de erro
+    if (options?.extractDataOnError && path.includes('/porteiro/validar')) {
+      try {
+        const errorData = JSON.parse(text)
+        // Se contém dados do bilhete, retornar como sucesso
+        if (errorData.bilhete) {
+          return errorData.bilhete as T
+        }
+        // Ou se é um erro conhecido, criar um objeto bilhete com status baseado na mensagem
+        if (errorData.message) {
+          let status = 'INVALID'
+          if (errorData.message.includes('utilizado') || errorData.message.includes('USED')) {
+            status = 'USED'
+          } else if (errorData.message.includes('expirado') || errorData.message.includes('EXPIRED')) {
+            status = 'EXPIRED'
+          } else if (errorData.message.includes('cancelado') || errorData.message.includes('CANCELLED')) {
+            status = 'CANCELLED'
+          }
+          
+          // Criar um bilhete básico com o status identificado
+          let codigoTicket = ''
+          try {
+            if (init?.body && typeof init.body === 'string') {
+              codigoTicket = JSON.parse(init.body).codigoTicket || ''
+            }
+          } catch (e) {
+            // Ignorar erro de parsing
+          }
+          
+          return {
+            id: 0,
+            status,
+            codigoTicket,
+            codigoTicketCompact: codigoTicket,
+            compradorNome: 'N/A',
+            compradorTelefone: 'N/A',
+            vendidoEm: new Date().toISOString()
+          } as T
+        }
+      } catch (jsonError) {
+        // Se não conseguir extrair, continua com o tratamento normal de erro
+      }
+    }
     
     // Tentar parsear JSON do erro para obter mensagem detalhada
     try {
