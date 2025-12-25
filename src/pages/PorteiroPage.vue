@@ -139,6 +139,80 @@
       </div>
     </div>
 
+    <!-- Modal de Detalhes do Bilhete -->
+    <div v-if="showModalBilhete && bilheteValidado" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="fecharModalBilhete">
+      <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center" :class="statusIconClass(bilheteValidado.status)">
+            <svg v-if="bilheteValidado.status === 'VALID'" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else-if="bilheteValidado.status === 'USED'" class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else-if="bilheteValidado.status === 'CANCELLED'" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <svg v-else class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Detalhes do Bilhete</h3>
+            <div class="bg-gray-50 rounded p-4 space-y-3 text-sm">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Código:</span>
+                <span class="font-mono font-semibold">{{ bilheteValidado.codigoTicketCompact }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Status:</span>
+                <span :class="statusClass(bilheteValidado.status)" class="px-2 py-1 rounded text-xs font-semibold">
+                  {{ statusText(bilheteValidado.status) }}
+                </span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Comprador:</span>
+                <span class="font-medium">{{ bilheteValidado.compradorNome }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Telefone:</span>
+                <span>{{ bilheteValidado.compradorTelefone }}</span>
+              </div>
+              <div v-if="bilheteValidado.eventoTitulo" class="flex justify-between items-center">
+                <span class="text-gray-600">Evento:</span>
+                <span class="font-medium">{{ bilheteValidado.eventoTitulo }}</span>
+              </div>
+              <div v-if="bilheteValidado.loteNome" class="flex justify-between items-center">
+                <span class="text-gray-600">Lote:</span>
+                <span>{{ bilheteValidado.loteNome }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Vendido em:</span>
+                <span class="text-xs">{{ formatDate(bilheteValidado.vendidoEm) }}</span>
+              </div>
+              <div v-if="bilheteValidado.utilizadoEm" class="flex justify-between items-center">
+                <span class="text-gray-600">Utilizado em:</span>
+                <span class="text-xs">{{ formatDate(bilheteValidado.utilizadoEm) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-3">
+          <button @click="fecharModalBilhete" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium">
+            Fechar
+          </button>
+          <button 
+            v-if="bilheteValidado.status === 'VALID'" 
+            @click="confirmarCheckin" 
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+          >
+            ✅ Confirmar Check-in
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de Confirmação de Check-In -->
     <div v-if="mostrarModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="cancelarCheckIn">
       <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
@@ -265,6 +339,7 @@ import type { Bilhete } from '@/types/evento'
 import { Html5Qrcode } from 'html5-qrcode'
 
 const store = useCheckInStore()
+const checkinStore = store // Alias para manter compatibilidade
 const codigo = ref('')
 const bilhete = ref<Bilhete | null>(null)
 const loading = ref(false)
@@ -280,9 +355,16 @@ const ticketValidado = ref(false)
 // Novos estados para modais de feedback
 const mostrarModalSucesso = ref(false)
 const mostrarModalErro = ref(false)
+const mostrarModalDetalhes = ref(false)
 const mensagemSucesso = ref('')
 const mensagemErro = ref('')
 const bilheteCheckIn = ref<Bilhete | null>(null)
+
+// Alias para as variáveis dos modais (para manter consistência)
+const showModalBilhete = mostrarModalDetalhes
+const showModalSucesso = mostrarModalSucesso
+const showModalErro = mostrarModalErro
+const erroMensagem = mensagemErro
 
 const ultimos = store.ultimosCheckIns
 
@@ -485,10 +567,13 @@ async function validar() {
       bilhete.value = resultado
       bilheteValidado.value = resultado
       ticketValidado.value = true
-      // Bilhete validado com sucesso - pronto para check-in
+      // Mostrar modal com detalhes do bilhete
+      showModalBilhete.value = true
     }
   } catch (e: any) {
-    error.value = e.message || 'Erro ao validar bilhete'
+    // Mostrar modal de erro
+    mensagemErro.value = e.message || 'Erro ao validar bilhete. Tente novamente.'
+    mostrarModalErro.value = true
   }
   
   loading.value = false
@@ -580,6 +665,37 @@ function statusClass(s: Bilhete['status']) {
     case 'CANCELLED': return 'bg-red-100 text-red-700'
     case 'EXPIRED': return 'bg-gray-200 text-gray-700'
     default: return 'bg-gray-100 text-gray-700'
+  }
+}
+function statusText(s: Bilhete['status']) {
+  return { VALID: 'Válido', USED: 'Utilizado', CANCELLED: 'Cancelado', EXPIRED: 'Expirado' }[s] || s
+}
+function statusIconClass(s: Bilhete['status']) {
+  switch (s) {
+    case 'VALID': return 'bg-green-100'
+    case 'USED': return 'bg-blue-100'
+    case 'CANCELLED': return 'bg-red-100'
+    case 'EXPIRED': return 'bg-gray-200'
+    default: return 'bg-gray-100'
+  }
+}
+function fecharModalBilhete() {
+  showModalBilhete.value = false
+  bilheteValidado.value = null
+}
+async function confirmarCheckin() {
+  if (!bilheteValidado.value) return
+  
+  try {
+    await checkinStore.validarBilhete(bilheteValidado.value.id)
+    showModalBilhete.value = false
+    showModalSucesso.value = true
+    bilheteValidado.value = null
+  } catch (error: any) {
+    showModalBilhete.value = false
+    showModalErro.value = true
+    erroMensagem.value = error.message || 'Erro ao realizar check-in'
+    bilheteValidado.value = null
   }
 }
 </script>
