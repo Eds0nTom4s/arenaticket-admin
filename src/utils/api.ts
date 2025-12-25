@@ -22,10 +22,21 @@ export async function api<T>(path: string, init?: RequestInit, options?: { extra
     if (options?.extractDataOnError && path.includes('/porteiro/validar')) {
       try {
         const errorData = JSON.parse(text)
-        // Se contém dados do bilhete, retornar como sucesso
+        // Se contém dados do bilhete diretamente, retornar como sucesso
         if (errorData.bilhete) {
           return errorData.bilhete as T
         }
+        // Tentar extrair dados do bilhete de outros campos possíveis
+        if (errorData.data && typeof errorData.data === 'object') {
+          return errorData.data as T
+        }
+        // Verificar se a resposta de erro em si é um bilhete (contém campos típicos)
+        const possibleBilheteFields = ['id', 'codigoTicket', 'status', 'compradorNome', 'vendidoEm', 'utilizadoEm']
+        const hasBilheteFields = possibleBilheteFields.some(field => errorData.hasOwnProperty(field))
+        if (hasBilheteFields) {
+          return errorData as T
+        }
+        
         // Ou se é um erro conhecido, criar um objeto bilhete com status baseado na mensagem
         if (errorData.message) {
           let status = 'INVALID'
