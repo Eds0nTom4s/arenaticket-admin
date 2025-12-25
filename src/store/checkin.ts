@@ -22,6 +22,29 @@ export const useCheckInStore = defineStore('checkin', {
     ultimosCheckIns: [],
   }),
   actions: {
+    // Novo método: apenas valida o ticket sem fazer check-in
+    async validarTicket(codigo: string) {
+      this.loading = true
+      this.error = null
+      this.bilhete = null
+      
+      try {
+        const response = await api<Bilhete>(`/porteiro/validar`, {
+          method: 'POST',
+          body: JSON.stringify({ codigoTicket: codigo }),
+        })
+        
+        this.bilhete = response
+        return response
+      } catch (e: any) {
+        this.error = e.message || 'Erro ao validar bilhete'
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Método existente: faz o check-in efetivo
     async validarBilhete(codigo: string, eventoId?: string) {
       this.loading = true
       this.error = null

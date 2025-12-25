@@ -1,0 +1,267 @@
+================================================================================
+INSTRUÇÕES PARA EQUIPE DE FRONTEND - ATUALIZAÇÃO DO FLUXO DE CHECK-IN
+ArenaTicket - Página do Porteiro
+Data: 25 de dezembro de 2025
+================================================================================
+
+1. CONTEXTO DO PROBLEMA
+================================================================================
+O fluxo atual de check-in exigia que o porteiro informasse o eventoId no momento
+da validação, causando erro 400 quando apenas queria verificar se um ticket era válido.
+
+Problema identificado:
+- Endpoint /api/v1/porteiro/checkin exigia eventoId obrigatório
+- Porteiros queriam "pré-visualizar" tickets antes de confirmar check-in
+- UX ruim: erro de validação ao tentar validar sem evento
+
+2. SOLUÇÃO IMPLEMENTADA
+================================================================================
+Foi criado um novo endpoint específico para porteiros autenticados:
+
+ENDPOINT NOVO:
+POST /api/v1/porteiro/validar
+- Autenticação: Requer token de porteiro
+- Request: {"codigoTicket": "ABC123"}
+- Response: BilheteDTO completo com validações de elegibilidade
+
+DIFERENÇA DOS ENDPOINTS PÚBLICOS:
+- /api/v1/public/validar/{codigo} - Público, apenas verifica existência
+- /api/v1/porteiro/validar - Autenticado, valida elegibilidade para check-in
+
+VALIDAÇÕES REALIZADAS NO NOVO ENDPOINT:
+- Bilhete existe
+- Status válido (não usado/expirado/cancelado)
+- Check-in aberto para o evento
+- Evento não terminou
+
+3. FLUXO RECOMENDADO PARA USUÁRIO
+================================================================================
+ANTES (Problema):
+1. Porteiro escaneia código
+2. Sistema tenta check-in imediato (erro 400 - eventoId obrigatório)
+3. Frustração do usuário
+
+DEPOIS (Solução):
+1. Porteiro escaneia código
+2. Sistema VALIDA ticket (mostra dados na tela)
+3. Porteiro CONFIRMA check-in (seleciona evento se necessário)
+4. Sistema registra check-in
+
+4. MUDANÇAS NECESSÁRIAS NO FRONTEND
+================================================================================
+
+4.1 ESTRUTURA DA PÁGINA
+--------------------------------------------------------------------------------
+Dividir a interface em duas seções:
+
+A) SEÇÃO DE VALIDAÇÃO:
+- Campo para entrada do código do ticket
+- Botão "Validar Ticket"
+- Área para exibir dados do bilhete validado
+
+B) SEÇÃO DE CHECK-IN:
+- Botão "Confirmar Check-in" (habilitado apenas após validação)
+- Seleção de evento (se múltiplos eventos ativos)
+- Status do check-in
+
+4.2 NOVAS CHAMADAS DE API
+--------------------------------------------------------------------------------
+
+VALIDAÇÃO (Nova chamada):
+POST /api/v1/porteiro/validar
+Headers:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+Body:
+{
+  "codigoTicket": "GDSE-ABC123"
+}
+
+Response (200 OK):
+{
+  "id": "uuid-do-bilhete",
+  "codigoTicket": "GDSE-ABC123",
+  "codigoTicketCompact": "ABC123",
+  "compradorNome": "João Silva",
+  "compradorTelefone": "925123456",
+  "eventoId": "uuid-evento",
+  "eventoTitulo": "Concerto de Natal",
+  "loteNome": "VIP",
+  "status": "VALID",
+  "vendidoEm": "2025-12-20T10:30:00Z",
+  "checkedInAt": null
+}
+
+Response (400/404/409):
+{
+  "timestamp": "2025-12-25T...",
+  "status": 400,
+  "error": "Business Rule Exception",
+  "message": "Bilhete já utilizado em 2025-12-24T20:00:00Z"
+}
+
+CHECK-IN (Mantém chamada existente):
+POST /api/v1/porteiro/checkin
+Headers: Mesmo que acima
+
+Body:
+{
+  "codigoTicket": "GDSE-ABC123",
+  "eventoId": "uuid-do-evento-confirmado"
+}
+
+4.3 LÓGICA DE ESTADOS
+--------------------------------------------------------------------------------
+Estados da interface:
+1. INICIAL: Campo vazio, botão validar desabilitado
+2. DIGITANDO: Campo preenchido, botão validar habilitado
+3. VALIDANDO: Loading, aguardando resposta da API
+4. VALIDADO: Dados do bilhete exibidos, botão check-in habilitado
+5. CHECKIN_EM_ANDAMENTO: Loading do check-in
+6. CHECKIN_CONCLUÍDO: Sucesso, reset para estado inicial
+7. ERRO: Mensagem de erro exibida
+
+4.4 TRATAMENTO DE ERROS
+--------------------------------------------------------------------------------
+Erros possíveis na validação:
+- 404: Bilhete não encontrado
+- 409: Bilhete já usado/expirado/cancelado
+- 400: Check-in fechado para evento
+- 500: Erro interno
+
+Exibir mensagens amigáveis:
+- "Ticket não encontrado. Verifique o código."
+- "Este ticket já foi utilizado."
+- "Check-in não está aberto para este evento."
+- "Evento já foi encerrado."
+
+4.5 MELHORIAS DE UX
+--------------------------------------------------------------------------------
+- Suporte a leitura de QR codes (câmera)
+- Auto-formatação do código (remover espaços, hífens)
+- Histórico dos últimos tickets validados
+- Sons/notificações visuais para sucesso/erro
+- Validação em tempo real (ao digitar)
+
+5. EXEMPLO DE IMPLEMENTAÇÃO (JavaScript/React)
+================================================================================
+
+// Estado da aplicação
+const [codigoTicket, setCodigoTicket] = useState('');
+const [bilheteValidado, setBilheteValidado] = useState(null);
+const [eventoSelecionado, setEventoSelecionado] = useState('');
+const [loadingValidacao, setLoadingValidacao] = useState(false);
+const [loadingCheckin, setLoadingCheckin] = useState(false);
+const [erro, setErro] = useState('');
+
+// Função de validação
+const validarTicket = async () => {
+  if (!codigoTicket.trim()) return;
+
+  setLoadingValidacao(true);
+  setErro('');
+
+  try {
+    const response = await fetch('/api/v1/porteiro/validar', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ codigoTicket })
+    });
+
+    if (response.ok) {
+      const bilhete = await response.json();
+      setBilheteValidado(bilhete);
+      // Auto-selecionar evento se único
+      if (eventosAtivos.length === 1) {
+        setEventoSelecionado(eventosAtivos[0].id);
+      }
+    } else {
+      const error = await response.json();
+      setErro(error.message || 'Erro na validação');
+    }
+  } catch (error) {
+    setErro('Erro de conexão');
+  } finally {
+    setLoadingValidacao(false);
+  }
+};
+
+// Função de check-in
+const realizarCheckin = async () => {
+  if (!bilheteValidado || !eventoSelecionado) return;
+
+  setLoadingCheckin(true);
+  setErro('');
+
+  try {
+    const response = await fetch('/api/v1/porteiro/checkin', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        codigoTicket: bilheteValidado.codigoTicket,
+        eventoId: eventoSelecionado
+      })
+    });
+
+    if (response.ok) {
+      const resultado = await response.json();
+      alert('Check-in realizado com sucesso!');
+      // Reset estado
+      setCodigoTicket('');
+      setBilheteValidado(null);
+      setEventoSelecionado('');
+    } else {
+      const error = await response.json();
+      setErro(error.message || 'Erro no check-in');
+    }
+  } catch (error) {
+    setErro('Erro de conexão');
+  } finally {
+    setLoadingCheckin(false);
+  }
+};
+
+6. COMPATIBILIDADE E MIGRAÇÃO
+================================================================================
+
+6.1 BACKWARD COMPATIBILITY
+--------------------------------------------------------------------------------
+- O endpoint antigo /api/v1/porteiro/checkin continua funcionando
+- Não há breaking changes
+- Frontend pode migrar gradualmente
+
+6.2 MIGRAÇÃO RECOMENDADA
+--------------------------------------------------------------------------------
+FASE 1: Implementar validação (novo endpoint)
+- Adicionar seção de validação
+- Manter check-in antigo como fallback
+
+FASE 2: Migrar para novo fluxo
+- Usar validação + check-in separado
+- Remover código antigo quando testado
+
+6.3 TESTES RECOMENDADOS
+--------------------------------------------------------------------------------
+- Validar ticket válido
+- Validar ticket usado (erro esperado)
+- Validar ticket inexistente (erro esperado)
+- Check-in após validação
+- Check-in direto (sem validação prévia)
+
+7. SUPORTE E CONTATO
+================================================================================
+Para dúvidas técnicas:
+- Backend: Verificar logs do endpoint /api/v1/porteiro/validar
+- Documentação API: Swagger UI em /swagger-ui
+- Equipe responsável: Desenvolvimento Backend
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================

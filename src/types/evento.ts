@@ -105,6 +105,10 @@ export interface Bilhete {
   vendidoEm: string
   utilizadoEm?: string
   createdAt: string
+  // Propriedades adicionais retornadas pelo endpoint de validação
+  eventoTitulo?: string
+  loteNome?: string
+  checkedInAt?: string | null
 }
 
 // Tipos para Vendas Presenciais - Conforme IMPLEMENTACAO_VENDEDOR_RESUMO.txt

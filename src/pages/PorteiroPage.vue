@@ -97,6 +97,28 @@
             </div>
           </div>
         </div>
+
+        <!-- Seção de Check-in -->
+        <div v-if="ticketValidado && bilheteValidado && bilheteValidado.status === 'VALID'" class="card space-y-4">
+          <h2 class="text-base sm:text-lg font-semibold text-green-700">✅ Check-in</h2>
+          <p class="text-sm text-gray-600">Bilhete validado com sucesso. Confirme o check-in para permitir a entrada.</p>
+          
+          <div class="bg-green-50 rounded p-4 space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-sm font-medium text-green-800">Evento:</span>
+              <span class="text-sm text-green-700">{{ bilheteValidado.eventoTitulo || 'Evento' }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm font-medium text-green-800">Lote:</span>
+              <span class="text-sm text-green-700">{{ bilheteValidado.loteNome || 'N/A' }}</span>
+            </div>
+          </div>
+          
+          <button @click="iniciarCheckIn" :disabled="confirmando" class="w-full btn-primary">
+            <span v-if="!confirmando">✓ Confirmar Check-in</span>
+            <span v-else>Confirmando...</span>
+          </button>
+        </div>
       </div>
 
       <!-- Últimos Check-ins -->
@@ -130,18 +152,22 @@
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirmar Check-In</h3>
             <p class="text-sm text-gray-600 mb-4">Deseja realmente confirmar a entrada deste bilhete?</p>
             
-            <div v-if="bilhete" class="bg-gray-50 rounded p-3 space-y-2 text-sm">
+            <div v-if="bilheteValidado" class="bg-gray-50 rounded p-3 space-y-2 text-sm">
               <div class="flex justify-between">
                 <span class="text-gray-500">Código:</span>
-                <span class="font-mono font-semibold">{{ bilhete.codigoTicketCompact }}</span>
+                <span class="font-mono font-semibold">{{ bilheteValidado.codigoTicketCompact }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500">Comprador:</span>
-                <span class="font-medium">{{ bilhete.compradorNome }}</span>
+                <span class="font-medium">{{ bilheteValidado.compradorNome }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500">Telefone:</span>
-                <span>{{ bilhete.compradorTelefone }}</span>
+                <span>{{ bilheteValidado.compradorTelefone }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">Evento:</span>
+                <span class="font-medium">{{ bilheteValidado.eventoTitulo || 'Evento' }}</span>
               </div>
             </div>
           </div>
@@ -246,6 +272,10 @@ const confirmando = ref(false)
 const error = ref<string | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 const mostrarModal = ref(false)
+
+// Estados para controlar o fluxo validação vs check-in
+const bilheteValidado = ref<Bilhete | null>(null)
+const ticketValidado = ref(false)
 
 // Novos estados para modais de feedback
 const mostrarModalSucesso = ref(false)
@@ -445,42 +475,43 @@ async function validar() {
   loading.value = true
   error.value = null
   bilhete.value = null
+  bilheteValidado.value = null
+  ticketValidado.value = false
   
   try {
-    // GET /public/bilhete/:codigo - Apenas CONSULTA (não faz check-in)
-    const resultado = await store.consultarBilhete(codigo.value.trim().toUpperCase())
+    // POST /porteiro/validar - Valida ticket sem fazer check-in
+    const resultado = await store.validarTicket(codigo.value.trim().toUpperCase())
     if (resultado) {
       bilhete.value = resultado
-      // Se bilhete válido, mostrar modal de confirmação
-      if (resultado.status === 'VALID') {
-        mostrarModal.value = true
-      }
-    } else {
-      error.value = store.error
+      bilheteValidado.value = resultado
+      ticketValidado.value = true
+      // Bilhete validado com sucesso - pronto para check-in
     }
   } catch (e: any) {
-    error.value = e.message || 'Erro ao consultar bilhete'
+    error.value = e.message || 'Erro ao validar bilhete'
   }
   
   loading.value = false
 }
 
 async function confirmarCheckIn() {
-  if (!bilhete.value) return
+  if (!bilheteValidado.value) return
   mostrarModal.value = false
   confirmando.value = true
   
   try {
     // POST /porteiro/checkin - FAZ O CHECK-IN
-    await store.validarBilhete(bilhete.value.codigoTicketCompact, bilhete.value.eventoId)
+    await store.validarBilhete(bilheteValidado.value.codigoTicketCompact, bilheteValidado.value.eventoId)
     
     // Mostrar modal de sucesso
-    bilheteCheckIn.value = bilhete.value
-    mensagemSucesso.value = `Check-in realizado com sucesso para o ticket ${bilhete.value.codigoTicketCompact} - ${bilhete.value.compradorNome}`
+    bilheteCheckIn.value = bilheteValidado.value
+    mensagemSucesso.value = `Check-in realizado com sucesso para o ticket ${bilheteValidado.value.codigoTicketCompact} - ${bilheteValidado.value.compradorNome}`
     mostrarModalSucesso.value = true
     
-    // Limpar dados do bilhete atual
+    // Limpar dados do bilhete validado
     bilhete.value = null
+    bilheteValidado.value = null
+    ticketValidado.value = false
     error.value = null
     codigo.value = ''
     
@@ -490,6 +521,12 @@ async function confirmarCheckIn() {
     mostrarModalErro.value = true
   } finally {
     confirmando.value = false
+  }
+}
+
+function iniciarCheckIn() {
+  if (bilheteValidado.value) {
+    mostrarModal.value = true
   }
 }
 
@@ -510,6 +547,8 @@ function fecharModalErro() {
 
 function limpar() {
   bilhete.value = null
+  bilheteValidado.value = null
+  ticketValidado.value = false
   error.value = null
   codigo.value = ''
   inputRef.value?.focus()
