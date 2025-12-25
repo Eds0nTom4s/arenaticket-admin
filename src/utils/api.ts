@@ -52,9 +52,10 @@ export async function api<T>(path: string, init?: RequestInit, options?: { extra
             status,
             codigoTicket,
             codigoTicketCompact: codigoTicket,
-            compradorNome: 'N/A',
+            compradorNome: 'Informação não disponível',
             compradorTelefone: 'N/A',
-            vendidoEm: new Date().toISOString()
+            vendidoEm: new Date().toISOString(),
+            utilizadoEm: status === 'USED' ? new Date().toISOString() : undefined
           } as T
         }
       } catch (jsonError) {

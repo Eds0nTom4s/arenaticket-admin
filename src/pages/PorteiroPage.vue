@@ -147,7 +147,7 @@
             <svg v-if="bilheteValidado.status === 'VALID'" class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
-            <svg v-else-if="bilheteValidado.status === 'USED'" class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg v-else-if="bilheteValidado.status === 'USED'" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
             <svg v-else-if="bilheteValidado.status === 'CANCELLED'" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,11 +172,11 @@
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-gray-600">Comprador:</span>
-                <span class="font-medium">{{ bilheteValidado.compradorNome }}</span>
+                <span class="font-medium">{{ bilheteValidado.compradorNome || 'N/A' }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-gray-600">Telefone:</span>
-                <span>{{ bilheteValidado.compradorTelefone }}</span>
+                <span>{{ bilheteValidado.compradorTelefone || 'N/A' }}</span>
               </div>
               <div v-if="bilheteValidado.eventoTitulo" class="flex justify-between items-center">
                 <span class="text-gray-600">Evento:</span>
@@ -190,9 +190,13 @@
                 <span class="text-gray-600">Vendido em:</span>
                 <span class="text-xs">{{ formatDate(bilheteValidado.vendidoEm) }}</span>
               </div>
-              <div v-if="bilheteValidado.utilizadoEm" class="flex justify-between items-center">
-                <span class="text-gray-600">Utilizado em:</span>
-                <span class="text-xs">{{ formatDate(bilheteValidado.utilizadoEm) }}</span>
+              <div v-if="bilheteValidado.status === 'USED' && bilheteValidado.utilizadoEm" class="flex justify-between items-center">
+                <span class="text-red-600 font-medium">Check-in realizado em:</span>
+                <span class="text-xs font-semibold text-red-700">{{ formatDate(bilheteValidado.utilizadoEm) }}</span>
+              </div>
+              <div v-else-if="bilheteValidado.status === 'USED'" class="flex justify-between items-center">
+                <span class="text-red-600 font-medium">Status:</span>
+                <span class="text-xs font-semibold text-red-700">Bilhete já utilizado</span>
               </div>
             </div>
           </div>
@@ -651,7 +655,7 @@ function statusLabel(s: Bilhete['status']) {
 function statusClass(s: Bilhete['status']) {
   switch (s) {
     case 'VALID': return 'bg-green-100 text-green-700'
-    case 'USED': return 'bg-blue-100 text-blue-700'
+    case 'USED': return 'bg-red-100 text-red-700'
     case 'CANCELLED': return 'bg-red-100 text-red-700'
     case 'EXPIRED': return 'bg-gray-200 text-gray-700'
     default: return 'bg-gray-100 text-gray-700'
@@ -663,7 +667,7 @@ function statusText(s: Bilhete['status']) {
 function statusIconClass(s: Bilhete['status']) {
   switch (s) {
     case 'VALID': return 'bg-green-100'
-    case 'USED': return 'bg-blue-100'
+    case 'USED': return 'bg-red-100'
     case 'CANCELLED': return 'bg-red-100'
     case 'EXPIRED': return 'bg-gray-200'
     default: return 'bg-gray-100'
