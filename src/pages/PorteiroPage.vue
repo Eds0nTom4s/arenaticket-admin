@@ -307,18 +307,8 @@
             </svg>
           </div>
           <div class="flex-1">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">❌ Erro no Check-in</h3>
-            <p class="text-sm text-gray-600 mb-4">{{ mensagemErro }}</p>
-            
-            <div class="bg-red-50 rounded p-3 text-sm text-red-800">
-              <div class="font-medium mb-1">O que pode ter acontecido:</div>
-              <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>Bilhete já foi utilizado</li>
-                <li>Evento não permite check-in no momento</li>
-                <li>Problema de conexão com o servidor</li>
-                <li>Código do bilhete inválido</li>
-              </ul>
-            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">❌ Erro</h3>
+            <p class="text-sm text-gray-600">{{ mensagemErro }}</p>
           </div>
         </div>
         
@@ -687,7 +677,7 @@ async function confirmarCheckin() {
   if (!bilheteValidado.value) return
   
   try {
-    await checkinStore.validarBilhete(bilheteValidado.value.id)
+    await checkinStore.validarBilhete(bilheteValidado.value.codigoTicket, bilheteValidado.value.eventoId)
     showModalBilhete.value = false
     showModalSucesso.value = true
     bilheteValidado.value = null
