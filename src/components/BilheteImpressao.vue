@@ -148,6 +148,7 @@ function formatDate(dateString: string) {
           <p><strong>IMPORTANTE:</strong> Este bilhete é válido apenas para o evento especificado.</p>
           <p>Não é permitida a entrada após o horário de início do evento.</p>
           <p>Bilhete não reembolsável. Válido para uma única entrada.</p>
+          <p class="suporte"><strong>Suporte:</strong> +244 925 813 939</p>
         </div>
       </div>
     </div>
@@ -171,6 +172,7 @@ function formatDate(dateString: string) {
 
 .bilhete-container {
   width: 100%;
+  padding-bottom: 10px; /* Margem inferior para corte em área branca */
 }
 
 /* Cabeçalho */
@@ -362,6 +364,15 @@ function formatDate(dateString: string) {
   margin: 1mm 0;
 }
 
+.aviso-legal .suporte {
+  margin-top: 2mm;
+  padding-top: 2mm;
+  border-top: 1px dashed #d1d5db;
+  color: #1e40af;
+  font-size: 9px;
+  font-weight: 600;
+}
+
 /* Estilos para Impressão */
 @media print {
   body {
@@ -377,6 +388,7 @@ function formatDate(dateString: string) {
   .bilhete-page {
     margin: 0;
     padding: 0;
+    padding-bottom: 10px; /* Margem inferior para corte em área branca */
     page-break-inside: avoid;
   }
 

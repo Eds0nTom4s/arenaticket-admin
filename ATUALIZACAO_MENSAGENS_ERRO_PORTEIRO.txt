@@ -1,0 +1,157 @@
+================================================================================
+ATUALIZAÇÃO: MENSAGENS DE ERRO DE VALIDAÇÃO DE BILHETE
+================================================================================
+Data: 26/12/2025
+Para: Equipe Frontend
+De: Backend - ArenaTicket
+
+================================================================================
+RESUMO DA MUDANÇA
+================================================================================
+
+Melhoramos as mensagens de erro da validação de bilhetes na tela do Porteiro.
+
+Antes: Mensagens genéricas como "Erro na operação"
+Agora: Mensagens específicas e claras sobre o problema
+
+
+================================================================================
+O QUE MUDOU NO BACKEND
+================================================================================
+
+As respostas de erro HTTP 400 agora retornam:
+
+1. Campo "error" com tipo específico do erro
+2. Campo "message" com mensagem clara e amigável
+3. Sem necessidade de tradução no frontend
+
+
+================================================================================
+TIPOS DE ERRO RETORNADOS
+================================================================================
+
+1. CHECK-IN FECHADO
+   - Campo error: "Check-in Fechado"
+   - Mensagem: "O check-in ainda não foi aberto para este evento. Aguarde a 
+     abertura ou contacte o administrador."
+
+2. BILHETE JÁ UTILIZADO
+   - Campo error: "Bilhete Já Utilizado"
+   - Mensagem: "Bilhete já utilizado em [data e hora]"
+
+3. BILHETE EXPIRADO
+   - Campo error: "Bilhete Expirado"
+   - Mensagem: "Bilhete expirado. Direcione o cliente ao suporte."
+
+4. BILHETE CANCELADO
+   - Campo error: "Bilhete Cancelado"
+   - Mensagem: "Bilhete cancelado. Acesso não autorizado."
+
+5. EVENTO ENCERRADO
+   - Campo error: "Evento Encerrado"
+   - Mensagem: "Este evento já foi encerrado. Check-in não é mais permitido."
+
+6. EVENTO INCORRETO
+   - Campo error: "Evento Incorreto"
+   - Mensagem: "Este bilhete não é válido para este evento. Bilhete pertence 
+     ao evento: [nome do evento]"
+
+
+================================================================================
+ESTRUTURA DA RESPOSTA DE ERRO (HTTP 400)
+================================================================================
+
+timestamp: Data e hora do erro
+status: 400
+error: [Tipo específico do erro]
+message: [Mensagem amigável para exibir ao usuário]
+path: [Endpoint chamado]
+
+
+================================================================================
+O QUE FAZER NO FRONTEND
+================================================================================
+
+1. EXIBIR A MENSAGEM DIRETAMENTE
+   Vocês podem mostrar o campo "message" diretamente ao usuário.
+   A mensagem já vem clara e amigável.
+
+2. USAR O CAMPO "error" PARA IDENTIFICAR O TIPO
+   Se precisarem aplicar estilos diferentes ou ícones específicos por tipo de 
+   erro, usem o campo "error".
+
+3. CASOS ESPECIAIS - CHECK-IN FECHADO
+   Quando receber erro "Check-in Fechado", vocês podem:
+   - Exibir ícone de relógio/cadeado
+   - Sugerir ao porteiro verificar com administrador
+   - Desabilitar temporariamente a validação
+
+4. NÃO PRECISA MAIS TRATAR MENSAGENS GENÉRICAS
+   Todas as mensagens já vêm prontas para exibição.
+
+
+================================================================================
+ENDPOINTS AFETADOS
+================================================================================
+
+POST /api/v1/porteiro/validar
+POST /api/v1/porteiro/checkin
+
+
+================================================================================
+EXEMPLO DE USO
+================================================================================
+
+Quando usuário tentar validar bilhete com check-in fechado:
+
+Antes:
+  - Erro genérico: "Erro na operação"
+  - Usuário não sabe o motivo
+
+Agora:
+  - Tipo: "Check-in Fechado"
+  - Mensagem clara: "O check-in ainda não foi aberto para este evento..."
+  - Usuário entende e sabe o que fazer
+
+
+================================================================================
+RECOMENDAÇÕES
+================================================================================
+
+1. EXIBIR MENSAGEM DESTACADA
+   Use um alert/toast/modal com a mensagem de erro.
+
+2. USAR CORES APROPRIADAS
+   - Check-in fechado: Amarelo/Laranja (aviso)
+   - Bilhete usado/cancelado: Vermelho (erro)
+   - Evento encerrado: Cinza (informativo)
+
+3. ADICIONAR ÍCONE
+   Melhora a compreensão visual do tipo de erro.
+
+4. PERMITIR FECHAR/LIMPAR
+   Usuário deve poder fechar a mensagem e tentar novo código.
+
+
+================================================================================
+DEPLOY
+================================================================================
+
+A atualização será deployada automaticamente após push para produção.
+
+Vocês podem começar a implementar as melhorias no frontend já, pois as 
+mensagens antigas continuarão funcionando (apenas serão substituídas pelas 
+novas quando o backend for atualizado).
+
+
+================================================================================
+DÚVIDAS?
+================================================================================
+
+Se tiverem qualquer dúvida sobre as mensagens ou precisarem de ajustes, 
+podem me contactar.
+
+
+Att,
+Equipe Backend
+26/12/2025
