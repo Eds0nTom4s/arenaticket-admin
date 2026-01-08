@@ -12,6 +12,12 @@ const VisualizarBilhetePage = () => import('@/pages/VisualizarBilhetePage.vue')
 const PorteiroPage = () => import('@/pages/PorteiroPage.vue')
 const VendasPage = () => import('@/pages/VendasPage.vue')
 
+// Gestão de Usuários
+const UsuariosListPage = () => import('@/pages/admin/usuarios/UsuariosListPage.vue')
+const UsuarioCreatePage = () => import('@/pages/admin/usuarios/UsuarioCreatePage.vue')
+const UsuarioEditPage = () => import('@/pages/admin/usuarios/UsuarioEditPage.vue')
+const UsuarioDetailPage = () => import('@/pages/admin/usuarios/UsuarioDetailPage.vue')
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -61,6 +67,31 @@ const router = createRouter({
       path: '/vendas', 
       component: VendasPage, 
       meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'VENDEDOR'] } 
+    },
+    // Gestão de Usuários
+    { 
+      path: '/admin/usuarios',
+      name: 'Usuarios',
+      component: UsuariosListPage,
+      meta: { requiresAuth: true, allowedRoles: ['ADMIN'], title: 'Gestão de Usuários' }
+    },
+    { 
+      path: '/admin/usuarios/novo',
+      name: 'UsuarioCreate',
+      component: UsuarioCreatePage,
+      meta: { requiresAuth: true, allowedRoles: ['ADMIN'], title: 'Novo Usuário' }
+    },
+    { 
+      path: '/admin/usuarios/:id',
+      name: 'UsuarioDetail',
+      component: UsuarioDetailPage,
+      meta: { requiresAuth: true, allowedRoles: ['ADMIN'], title: 'Detalhes do Usuário' }
+    },
+    { 
+      path: '/admin/usuarios/:id/editar',
+      name: 'UsuarioEdit',
+      component: UsuarioEditPage,
+      meta: { requiresAuth: true, allowedRoles: ['ADMIN'], title: 'Editar Usuário' }
     },
   ],
 })
