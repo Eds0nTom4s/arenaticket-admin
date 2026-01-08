@@ -115,7 +115,7 @@ const emit = defineEmits<Emits>();
 const roleOptions = ROLE_OPTIONS;
 
 // Debounce para busca
-const searchTimeout = ref<NodeJS.Timeout | null>(null);
+const searchTimeout = ref<number | null>(null);
 
 const statusTabs = computed(() => [
   {

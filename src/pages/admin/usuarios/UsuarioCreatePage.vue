@@ -50,18 +50,18 @@ import { useRouter } from 'vue-router';
 import { useUsuarioStore } from '@/store/usuarios';
 import BaseLayout from '@/layouts/BaseLayout.vue';
 import UsuarioForm from '@/components/admin/usuarios/UsuarioForm.vue';
-import type { CreateUsuarioDto } from '@/types/usuario';
+import type { CreateUsuarioDto, UpdateUsuarioDto } from '@/types/usuario';
 
 const router = useRouter();
 const usuarioStore = useUsuarioStore();
 
 const loading = ref(false);
 
-const handleSubmit = async (data: CreateUsuarioDto) => {
+const handleSubmit = async (data: CreateUsuarioDto | UpdateUsuarioDto) => {
   loading.value = true;
   
   try {
-    await usuarioStore.createUsuario(data);
+    await usuarioStore.createUsuario(data as CreateUsuarioDto);
     alert('Usuário criado com sucesso!');
     router.push({ name: 'Usuarios' });
   } catch (error) {
