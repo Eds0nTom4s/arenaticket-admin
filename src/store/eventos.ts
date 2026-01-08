@@ -54,14 +54,10 @@ export const useEventosStore = defineStore('eventos', {
         body: JSON.stringify(payload),
       })
       
-      // Atualizar o item na lista local com reatividade adequada
+      // Atualizar o item na lista local
       const idx = this.itens.findIndex((e) => e.id === id)
-      if (idx >= 0) {
-        // Criar novo objeto para garantir reatividade, preservando todos os campos
-        const eventoAtual = this.itens[idx]
-        this.itens[idx] = Object.assign({}, eventoAtual, {
-          checkinAberto: response.checkinAberto
-        })
+      if (idx >= 0 && this.itens[idx]) {
+        this.itens[idx].checkinAberto = payload.aberto
       }
       
       return response

@@ -21,20 +21,33 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     // Tentar parsear JSON do erro para obter mensagem detalhada
     try {
       const errorData = JSON.parse(text)
-      // Formato Spring Boot melhorado: { timestamp, status, error, message, path }
-      // error: tipo específico ("Check-in Fechado", "Bilhete Já Utilizado", etc.)
-      // message: mensagem amigável já formatada pelo backend
+      // Formato Spring Boot: { timestamp, status, error, message, path }
       if (errorData.message) {
-        const error = new Error(errorData.message) as Error & { type?: string }
-        // Adicionar tipo de erro para uso na UI
-        error.type = errorData.error
-        throw error
+        // Limpar mensagens técnicas e extrair apenas a parte amigável
+        let cleanMessage = errorData.message
+        
+        // Remover prefixos técnicos comuns
+        cleanMessage = cleanMessage.replace(/^Erro de validação:\s*/, '')
+        cleanMessage = cleanMessage.replace(/^\{.*=\s*/, '')
+        cleanMessage = cleanMessage.replace(/\}.*$/, '')
+        
+        // Mapeamento de mensagens técnicas para mensagens amigáveis
+        const messageMap: Record<string, string> = {
+          'ID do evento é obrigatório': 'Evento não encontrado ou inválido',
+          'Bilhete não encontrado': 'Bilhete não encontrado ou código inválido',
+          'Bilhete já foi utilizado': 'Este bilhete já foi utilizado',
+          'Bilhete expirado': 'Este bilhete está expirado',
+          'Bilhete cancelado': 'Este bilhete foi cancelado',
+          'Evento não permite check-in': 'Check-in não permitido para este evento no momento',
+          'Acesso negado': 'Você não tem permissão para realizar esta ação'
+        }
+        
+        // Usar mensagem mapeada se existir, senão usar a mensagem limpa
+        cleanMessage = messageMap[cleanMessage] || cleanMessage
+        
+        throw new Error(cleanMessage)
       }
     } catch (jsonError) {
-      // Se o erro for do tipo Error (já lançado acima), relançar
-      if (jsonError instanceof Error && jsonError.message) {
-        throw jsonError
-      }
       // Se não for JSON válido ou erro no parsing, continua
     }
     

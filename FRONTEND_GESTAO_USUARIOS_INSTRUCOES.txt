@@ -1,0 +1,1426 @@
+================================================================================
+  INSTRUÇÕES - MÓDULO DE GESTÃO DE USUÁRIOS (PAINEL ADMINISTRATIVO)
+  ArenaTicket - GDSE
+  Data: 08 de Janeiro de 2026
+  Destinatário: Equipe Frontend
+================================================================================
+
+ÍNDICE:
+  1. VISÃO GERAL DO MÓDULO
+  2. APIS DISPONÍVEIS (BACKEND)
+  3. ESTRUTURA DE ARQUIVOS SUGERIDA
+  4. COMPONENTES A IMPLEMENTAR
+  5. ROTAS E NAVEGAÇÃO
+  6. AUTENTICAÇÃO E PERMISSÕES
+  7. ESTADOS E GERENCIAMENTO DE DADOS
+  8. VALIDAÇÕES NO FRONTEND
+  9. FLUXOS DE USUÁRIO
+  10. DESIGN E LAYOUT SUGERIDO
+  11. TRATAMENTO DE ERROS
+  12. TESTES E VALIDAÇÃO
+  13. EXEMPLOS DE CÓDIGO
+
+================================================================================
+1. VISÃO GERAL DO MÓDULO
+================================================================================
+
+OBJETIVO:
+  Criar interface administrativa completa para gestão de usuários do sistema,
+  permitindo criar, editar, listar, ativar/desativar usuários.
+
+PERFIS DE USUÁRIO (Roles):
+  - ADMIN: Administrador do sistema (acesso total)
+  - VENDEDOR: Vendedor de bilhetes presenciais
+  - PORTEIRO: Validador de bilhetes na entrada
+  - MONITORING: Usuário técnico (métricas/logs)
+
+FUNCIONALIDADES PRINCIPAIS:
+  ✓ Listagem de usuários (tabela paginada com filtros)
+  ✓ Busca por nome/telefone
+  ✓ Filtro por role e status (ativo/inativo)
+  ✓ Criação de novo usuário
+  ✓ Edição de usuário existente
+  ✓ Ativação/Desativação de usuário
+  ✓ Visualização de detalhes do usuário
+  ✓ Indicadores visuais de status
+
+ACESSO:
+  - Apenas usuários com role ADMIN podem acessar este módulo
+  - Validação deve ser feita no frontend E backend
+
+================================================================================
+2. APIS DISPONÍVEIS (BACKEND)
+================================================================================
+
+BASE URL: https://api.arenaticket.gdse.ao/api/v1/admin/usuarios
+
+HEADER OBRIGATÓRIO EM TODAS AS REQUISIÇÕES:
+  Authorization: Bearer {token}
+  Content-Type: application/json
+
+---
+
+2.1. LISTAR TODOS OS USUÁRIOS
+  Endpoint: GET /api/v1/admin/usuarios
+  
+  Response (200 OK):
+  [
+    {
+      "id": "uuid",
+      "nome": "João Silva",
+      "telefone": "923456789",
+      "role": "VENDEDOR",
+      "ativo": true,
+      "createdAt": "2026-01-05T10:30:00+01:00",
+      "updatedAt": "2026-01-07T15:20:00+01:00"
+    },
+    ...
+  ]
+
+---
+
+2.2. LISTAR USUÁRIOS ATIVOS
+  Endpoint: GET /api/v1/admin/usuarios/ativos
+  
+  Response (200 OK): Mesma estrutura acima, apenas usuários ativos
+
+---
+
+2.3. BUSCAR USUÁRIO POR ID
+  Endpoint: GET /api/v1/admin/usuarios/{id}
+  
+  Response (200 OK):
+  {
+    "id": "uuid",
+    "nome": "João Silva",
+    "telefone": "923456789",
+    "role": "VENDEDOR",
+    "ativo": true,
+    "createdAt": "2026-01-05T10:30:00+01:00",
+    "updatedAt": "2026-01-07T15:20:00+01:00"
+  }
+  
+  Response (404 Not Found):
+  {
+    "message": "Usuário não encontrado com ID: {id}",
+    "timestamp": "2026-01-08T10:00:00+01:00"
+  }
+
+---
+
+2.4. CRIAR NOVO USUÁRIO
+  Endpoint: POST /api/v1/admin/usuarios
+  
+  Request Body:
+  {
+    "nome": "Maria Santos",
+    "telefone": "923987654",
+    "senha": "senha123",
+    "role": "VENDEDOR",
+    "ativo": true
+  }
+  
+  Response (201 Created):
+  {
+    "id": "novo-uuid",
+    "nome": "Maria Santos",
+    "telefone": "923987654",
+    "role": "VENDEDOR",
+    "ativo": true,
+    "createdAt": "2026-01-08T10:00:00+01:00",
+    "updatedAt": null
+  }
+  
+  Response (400 Bad Request):
+  {
+    "message": "Já existe um usuário com este telefone: 923987654",
+    "timestamp": "2026-01-08T10:00:00+01:00"
+  }
+
+---
+
+2.5. ATUALIZAR USUÁRIO
+  Endpoint: PUT /api/v1/admin/usuarios/{id}
+  
+  Request Body:
+  {
+    "nome": "Maria Santos Silva",
+    "telefone": "923987654",
+    "senha": "novaSenha123",  // OPCIONAL (só enviar se quiser alterar)
+    "role": "ADMIN",
+    "ativo": true
+  }
+  
+  Response (200 OK): Mesmo formato do GET por ID
+  
+  IMPORTANTE: Se não quiser alterar a senha, NÃO enviar o campo "senha"
+              ou enviar como null/string vazia.
+
+---
+
+2.6. DESATIVAR USUÁRIO (Soft Delete)
+  Endpoint: DELETE /api/v1/admin/usuarios/{id}
+  
+  Response (204 No Content): Sem corpo de resposta
+  
+  Observação: Usuário NÃO é removido do banco, apenas marcado como inativo.
+
+---
+
+2.7. REATIVAR USUÁRIO
+  Endpoint: PATCH /api/v1/admin/usuarios/{id}/ativar
+  
+  Response (200 OK): Sem corpo de resposta
+
+================================================================================
+3. ESTRUTURA DE ARQUIVOS SUGERIDA
+================================================================================
+
+src/
+├── views/
+│   └── admin/
+│       └── usuarios/
+│           ├── UsuariosListView.vue         # Listagem principal
+│           ├── UsuarioCreateView.vue        # Criar novo usuário
+│           ├── UsuarioEditView.vue          # Editar usuário
+│           └── UsuarioDetailView.vue        # Visualizar detalhes
+│
+├── components/
+│   └── admin/
+│       └── usuarios/
+│           ├── UsuarioTable.vue             # Tabela de usuários
+│           ├── UsuarioForm.vue              # Formulário (create/edit)
+│           ├── UsuarioFilters.vue           # Filtros de busca
+│           ├── UsuarioCard.vue              # Card individual
+│           ├── UsuarioStatusBadge.vue       # Badge de status
+│           └── UsuarioDeleteModal.vue       # Modal de confirmação
+│
+├── services/
+│   └── usuarioService.js                    # Chamadas à API
+│
+├── stores/
+│   └── usuarioStore.js                      # Estado global (Pinia/Vuex)
+│
+├── composables/
+│   └── useUsuarios.js                       # Lógica reutilizável
+│
+└── utils/
+    └── validators/
+        └── usuarioValidators.js             # Validações customizadas
+
+================================================================================
+4. COMPONENTES A IMPLEMENTAR
+================================================================================
+
+4.1. USUÁRIOS LIST VIEW (Tela Principal)
+  
+  Descrição: Página principal com listagem de todos os usuários
+  
+  Elementos:
+    - Header com título "Gestão de Usuários"
+    - Botão "Novo Usuário" (canto superior direito)
+    - Barra de busca (nome/telefone)
+    - Filtros:
+      * Todos | Ativos | Inativos
+      * Role: Todos | ADMIN | VENDEDOR | PORTEIRO | MONITORING
+    - Tabela com colunas:
+      * Nome
+      * Telefone
+      * Role (badge colorido)
+      * Status (badge ativo/inativo)
+      * Data de Criação
+      * Ações (Ver, Editar, Desativar/Ativar)
+    - Paginação (se houver muitos usuários)
+    - Loading state
+    - Empty state (quando não há usuários)
+
+---
+
+4.2. USUÁRIO FORM (Criar/Editar)
+  
+  Descrição: Formulário para criar ou editar usuário
+  
+  Campos:
+    - Nome Completo (input text, obrigatório)
+    - Telefone (input tel, obrigatório, único)
+    - Senha (input password, obrigatório no create, opcional no edit)
+    - Confirmar Senha (input password, deve corresponder à senha)
+    - Role (select/dropdown, obrigatório)
+      Opções: ADMIN, VENDEDOR, PORTEIRO, MONITORING
+    - Status (switch/checkbox: Ativo/Inativo)
+  
+  Validações:
+    - Nome: mínimo 3 caracteres
+    - Telefone: formato válido (+244923456789 ou 923456789)
+    - Senha: mínimo 6 caracteres
+    - Confirmar senha: deve ser igual à senha
+  
+  Botões:
+    - "Salvar" (submit)
+    - "Cancelar" (voltar)
+
+---
+
+4.3. USUÁRIO TABLE
+  
+  Descrição: Tabela responsiva com lista de usuários
+  
+  Features:
+    - Ordenação por colunas (nome, telefone, data)
+    - Hover effects
+    - Loading skeleton
+    - Mensagem quando vazio
+    - Ações inline (ícones/botões)
+
+---
+
+4.4. FILTROS DE BUSCA
+  
+  Descrição: Componente de filtros acima da tabela
+  
+  Elementos:
+    - Campo de busca (debounce de 300ms)
+    - Tabs: Todos | Ativos | Inativos
+    - Dropdown de Role
+    - Botão "Limpar Filtros"
+
+---
+
+4.5. STATUS BADGE
+  
+  Descrição: Badge visual para status e role
+  
+  Status:
+    - Ativo: Badge verde com texto "Ativo"
+    - Inativo: Badge cinza com texto "Inativo"
+  
+  Role:
+    - ADMIN: Badge azul escuro
+    - VENDEDOR: Badge laranja
+    - PORTEIRO: Badge roxo
+    - MONITORING: Badge cinza claro
+
+---
+
+4.6. MODAL DE CONFIRMAÇÃO
+  
+  Descrição: Modal para confirmar ações críticas
+  
+  Usar para:
+    - Desativar usuário
+    - Reativar usuário
+  
+  Elementos:
+    - Título: "Confirmar ação"
+    - Mensagem: "Tem certeza que deseja desativar o usuário {nome}?"
+    - Botões: "Cancelar" e "Confirmar"
+
+================================================================================
+5. ROTAS E NAVEGAÇÃO
+================================================================================
+
+ADICIONAR NO ROUTER (Vue Router):
+
+{
+  path: '/admin/usuarios',
+  name: 'Usuarios',
+  component: () => import('@/views/admin/usuarios/UsuariosListView.vue'),
+  meta: {
+    requiresAuth: true,
+    requiresAdmin: true,
+    title: 'Gestão de Usuários'
+  }
+},
+{
+  path: '/admin/usuarios/novo',
+  name: 'UsuarioCreate',
+  component: () => import('@/views/admin/usuarios/UsuarioCreateView.vue'),
+  meta: {
+    requiresAuth: true,
+    requiresAdmin: true,
+    title: 'Novo Usuário'
+  }
+},
+{
+  path: '/admin/usuarios/:id',
+  name: 'UsuarioDetail',
+  component: () => import('@/views/admin/usuarios/UsuarioDetailView.vue'),
+  meta: {
+    requiresAuth: true,
+    requiresAdmin: true,
+    title: 'Detalhes do Usuário'
+  }
+},
+{
+  path: '/admin/usuarios/:id/editar',
+  name: 'UsuarioEdit',
+  component: () => import('@/views/admin/usuarios/UsuarioEditView.vue'),
+  meta: {
+    requiresAuth: true,
+    requiresAdmin: true,
+    title: 'Editar Usuário'
+  }
+}
+
+NAVEGAÇÃO:
+  Dashboard → Menu Admin → Usuários → Lista
+  Lista → Botão "Novo Usuário" → Formulário de Criação
+  Lista → Ação "Editar" → Formulário de Edição
+  Lista → Ação "Ver" → Página de Detalhes
+
+BREADCRUMB SUGERIDO:
+  Dashboard > Admin > Usuários
+  Dashboard > Admin > Usuários > Novo
+  Dashboard > Admin > Usuários > {Nome} > Editar
+
+================================================================================
+6. AUTENTICAÇÃO E PERMISSÕES
+================================================================================
+
+GUARD DE ROTA (Router):
+
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore();
+  
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    next({ name: 'Login' });
+    return;
+  }
+  
+  if (to.meta.requiresAdmin && authStore.user?.role !== 'ADMIN') {
+    // Redirecionar para página "Sem Permissão" ou Dashboard
+    next({ name: 'Dashboard' });
+    showToast('Você não tem permissão para acessar esta página', 'error');
+    return;
+  }
+  
+  next();
+});
+
+VERIFICAÇÃO NO COMPONENTE:
+
+<template>
+  <div v-if="isAdmin">
+    <!-- Conteúdo -->
+  </div>
+  <div v-else>
+    <p>Você não tem permissão para acessar esta página.</p>
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === 'ADMIN');
+</script>
+
+TOKEN JWT:
+  - Armazenar token em localStorage após login
+  - Incluir em TODAS as requisições via interceptor
+  - Renovar automaticamente quando expirar (refresh token)
+
+================================================================================
+7. ESTADOS E GERENCIAMENTO DE DADOS
+================================================================================
+
+OPÇÃO 1: PINIA STORE (Recomendado)
+
+// stores/usuarioStore.js
+import { defineStore } from 'pinia';
+import usuarioService from '@/services/usuarioService';
+
+export const useUsuarioStore = defineStore('usuario', {
+  state: () => ({
+    usuarios: [],
+    currentUsuario: null,
+    loading: false,
+    error: null,
+    filters: {
+      search: '',
+      status: 'todos', // 'todos' | 'ativos' | 'inativos'
+      role: null
+    }
+  }),
+  
+  getters: {
+    usuariosFiltrados: (state) => {
+      let filtered = state.usuarios;
+      
+      // Filtrar por busca
+      if (state.filters.search) {
+        const search = state.filters.search.toLowerCase();
+        filtered = filtered.filter(u => 
+          u.nome.toLowerCase().includes(search) ||
+          u.telefone.includes(search)
+        );
+      }
+      
+      // Filtrar por status
+      if (state.filters.status === 'ativos') {
+        filtered = filtered.filter(u => u.ativo === true);
+      } else if (state.filters.status === 'inativos') {
+        filtered = filtered.filter(u => u.ativo === false);
+      }
+      
+      // Filtrar por role
+      if (state.filters.role) {
+        filtered = filtered.filter(u => u.role === state.filters.role);
+      }
+      
+      return filtered;
+    },
+    
+    usuariosAtivos: (state) => state.usuarios.filter(u => u.ativo),
+    usuariosInativos: (state) => state.usuarios.filter(u => !u.ativo),
+    totalUsuarios: (state) => state.usuarios.length
+  },
+  
+  actions: {
+    async fetchUsuarios() {
+      this.loading = true;
+      this.error = null;
+      try {
+        this.usuarios = await usuarioService.getAll();
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async fetchUsuarioById(id) {
+      this.loading = true;
+      this.error = null;
+      try {
+        this.currentUsuario = await usuarioService.getById(id);
+        return this.currentUsuario;
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async createUsuario(data) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const newUsuario = await usuarioService.create(data);
+        this.usuarios.push(newUsuario);
+        return newUsuario;
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async updateUsuario(id, data) {
+      this.loading = true;
+      this.error = null;
+      try {
+        const updatedUsuario = await usuarioService.update(id, data);
+        const index = this.usuarios.findIndex(u => u.id === id);
+        if (index !== -1) {
+          this.usuarios[index] = updatedUsuario;
+        }
+        return updatedUsuario;
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async deactivateUsuario(id) {
+      this.loading = true;
+      this.error = null;
+      try {
+        await usuarioService.deactivate(id);
+        const usuario = this.usuarios.find(u => u.id === id);
+        if (usuario) {
+          usuario.ativo = false;
+        }
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async activateUsuario(id) {
+      this.loading = true;
+      this.error = null;
+      try {
+        await usuarioService.activate(id);
+        const usuario = this.usuarios.find(u => u.id === id);
+        if (usuario) {
+          usuario.ativo = true;
+        }
+      } catch (error) {
+        this.error = error.message;
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    setFilter(filterType, value) {
+      this.filters[filterType] = value;
+    },
+    
+    clearFilters() {
+      this.filters = {
+        search: '',
+        status: 'todos',
+        role: null
+      };
+    }
+  }
+});
+
+================================================================================
+8. VALIDAÇÕES NO FRONTEND
+================================================================================
+
+// utils/validators/usuarioValidators.js
+
+export const validarNome = (nome) => {
+  if (!nome || nome.trim().length < 3) {
+    return 'O nome deve ter pelo menos 3 caracteres';
+  }
+  return null;
+};
+
+export const validarTelefone = (telefone) => {
+  if (!telefone) {
+    return 'O telefone é obrigatório';
+  }
+  
+  // Remover espaços e caracteres especiais
+  const cleaned = telefone.replace(/\D/g, '');
+  
+  // Validar formato angolano (9 dígitos)
+  if (cleaned.length === 9 && cleaned.startsWith('9')) {
+    return null;
+  }
+  
+  // Validar com código do país (+244)
+  if (cleaned.length === 12 && cleaned.startsWith('244')) {
+    return null;
+  }
+  
+  return 'Telefone inválido. Use formato: 923456789 ou +244923456789';
+};
+
+export const validarSenha = (senha, isEdit = false) => {
+  // Senha é opcional na edição
+  if (isEdit && (!senha || senha.trim() === '')) {
+    return null;
+  }
+  
+  if (!senha || senha.length < 6) {
+    return 'A senha deve ter pelo menos 6 caracteres';
+  }
+  
+  return null;
+};
+
+export const validarConfirmacaoSenha = (senha, confirmacao) => {
+  if (senha !== confirmacao) {
+    return 'As senhas não correspondem';
+  }
+  return null;
+};
+
+export const validarRole = (role) => {
+  const rolesValidos = ['ADMIN', 'VENDEDOR', 'PORTEIRO', 'MONITORING'];
+  
+  if (!role || !rolesValidos.includes(role)) {
+    return 'Selecione um perfil válido';
+  }
+  
+  return null;
+};
+
+USAR NO FORMULÁRIO:
+
+const errors = ref({
+  nome: null,
+  telefone: null,
+  senha: null,
+  confirmacaoSenha: null,
+  role: null
+});
+
+const validateForm = () => {
+  errors.value.nome = validarNome(form.nome);
+  errors.value.telefone = validarTelefone(form.telefone);
+  errors.value.senha = validarSenha(form.senha, isEdit);
+  errors.value.confirmacaoSenha = validarConfirmacaoSenha(
+    form.senha, 
+    form.confirmacaoSenha
+  );
+  errors.value.role = validarRole(form.role);
+  
+  return !Object.values(errors.value).some(error => error !== null);
+};
+
+================================================================================
+9. FLUXOS DE USUÁRIO
+================================================================================
+
+FLUXO 1: CRIAR NOVO USUÁRIO
+
+1. Admin clica em "Novo Usuário"
+2. Sistema abre formulário em branco
+3. Admin preenche:
+   - Nome: "João Silva"
+   - Telefone: "923456789"
+   - Senha: "senha123"
+   - Confirmar Senha: "senha123"
+   - Role: "VENDEDOR"
+   - Status: Ativo (marcado)
+4. Admin clica em "Salvar"
+5. Sistema valida:
+   - Todos os campos obrigatórios preenchidos? ✓
+   - Senhas correspondem? ✓
+   - Telefone válido? ✓
+6. Sistema envia POST /api/v1/admin/usuarios
+7. Backend responde:
+   - Sucesso (201): Sistema mostra toast "Usuário criado com sucesso"
+   - Erro (400): Sistema mostra mensagem de erro específica
+8. Sistema redireciona para lista de usuários
+9. Novo usuário aparece na tabela
+
+---
+
+FLUXO 2: EDITAR USUÁRIO EXISTENTE
+
+1. Admin visualiza lista de usuários
+2. Admin clica em ícone "Editar" na linha do usuário
+3. Sistema carrega dados do usuário
+4. Sistema pré-preenche formulário:
+   - Nome: "João Silva"
+   - Telefone: "923456789"
+   - Senha: (campo vazio - não mostrar senha atual)
+   - Role: "VENDEDOR"
+   - Status: Ativo
+5. Admin altera apenas o que deseja (ex: nome para "João Silva Santos")
+6. Admin clica em "Salvar"
+7. Sistema valida mudanças
+8. Sistema envia PUT /api/v1/admin/usuarios/{id}
+   Importante: Se senha estiver vazia, não enviar campo "senha"
+9. Backend responde:
+   - Sucesso (200): Toast "Usuário atualizado com sucesso"
+   - Erro (400/404): Mensagem de erro específica
+10. Sistema atualiza lista
+11. Usuário vê dados atualizados na tabela
+
+---
+
+FLUXO 3: DESATIVAR USUÁRIO
+
+1. Admin visualiza lista de usuários
+2. Admin clica em ícone "Desativar" na linha do usuário ativo
+3. Sistema abre modal de confirmação:
+   "Tem certeza que deseja desativar o usuário João Silva?"
+4. Admin clica em "Confirmar"
+5. Sistema envia DELETE /api/v1/admin/usuarios/{id}
+6. Backend responde:
+   - Sucesso (204): Toast "Usuário desativado"
+   - Erro: Mensagem de erro
+7. Sistema atualiza status na lista
+8. Badge do usuário muda para "Inativo" (cinza)
+9. Botão muda para "Ativar"
+
+---
+
+FLUXO 4: REATIVAR USUÁRIO
+
+1. Admin filtra por "Inativos" ou vê usuário inativo na lista
+2. Admin clica em "Ativar"
+3. Sistema abre modal de confirmação:
+   "Tem certeza que deseja reativar o usuário João Silva?"
+4. Admin confirma
+5. Sistema envia PATCH /api/v1/admin/usuarios/{id}/ativar
+6. Backend responde sucesso
+7. Toast "Usuário reativado"
+8. Status atualiza para "Ativo"
+
+---
+
+FLUXO 5: BUSCAR/FILTRAR USUÁRIOS
+
+1. Admin acessa lista de usuários (mostra todos)
+2. Admin digita "João" no campo de busca
+3. Sistema filtra automaticamente (debounce 300ms)
+4. Tabela mostra apenas usuários com "João" no nome/telefone
+5. Admin clica em filtro "Role: VENDEDOR"
+6. Sistema aplica filtro adicional
+7. Tabela mostra apenas vendedores com "João" no nome
+8. Admin clica em "Limpar Filtros"
+9. Sistema volta a mostrar todos os usuários
+
+================================================================================
+10. DESIGN E LAYOUT SUGERIDO
+================================================================================
+
+LISTA DE USUÁRIOS:
+
+┌────────────────────────────────────────────────────────────────┐
+│ Gestão de Usuários                         [+ Novo Usuário]    │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ [🔍 Buscar por nome ou telefone...]                            │
+│                                                                 │
+│ [ Todos (15) ] [ Ativos (12) ] [ Inativos (3) ]               │
+│                                                                 │
+│ Role: [ Todos ▼ ]                                              │
+│                                                                 │
+├────────────────────────────────────────────────────────────────┤
+│ Nome              │ Telefone    │ Role     │ Status │ Ações   │
+├───────────────────┼─────────────┼──────────┼────────┼─────────┤
+│ João Silva        │ 923456789   │ VENDEDOR │ Ativo  │ 👁 ✏️ 🗑️ │
+│ Maria Santos      │ 923987654   │ ADMIN    │ Ativo  │ 👁 ✏️ 🗑️ │
+│ Pedro Costa       │ 923111222   │ PORTEIRO │ Inativo│ 👁 ✏️ ✓  │
+└────────────────────────────────────────────────────────────────┘
+                        ← 1 2 3 →
+
+BADGES DE STATUS:
+  Ativo:   [  Ativo  ] (fundo verde claro, texto verde escuro)
+  Inativo: [ Inativo ] (fundo cinza claro, texto cinza escuro)
+
+BADGES DE ROLE:
+  ADMIN:      [ ADMIN ]      (azul escuro)
+  VENDEDOR:   [ VENDEDOR ]   (laranja)
+  PORTEIRO:   [ PORTEIRO ]   (roxo)
+  MONITORING: [ MONITORING ] (cinza)
+
+---
+
+FORMULÁRIO (CRIAR/EDITAR):
+
+┌────────────────────────────────────────────────────────────────┐
+│ ← Voltar     Novo Usuário                                      │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ Nome Completo *                                                │
+│ [                                                             ] │
+│                                                                 │
+│ Telefone *                                                     │
+│ [                                                             ] │
+│ Exemplo: 923456789 ou +244923456789                           │
+│                                                                 │
+│ Senha *                                                        │
+│ [                                                             ] │
+│ Mínimo 6 caracteres                                           │
+│                                                                 │
+│ Confirmar Senha *                                              │
+│ [                                                             ] │
+│                                                                 │
+│ Perfil de Acesso *                                            │
+│ [ Selecione...                                             ▼] │
+│   - Administrador (acesso total)                              │
+│   - Vendedor (vendas presenciais)                             │
+│   - Porteiro (validação de bilhetes)                          │
+│   - Monitoring (métricas e logs)                              │
+│                                                                 │
+│ Status                                                         │
+│ ◉ Ativo    ○ Inativo                                          │
+│                                                                 │
+│                              [ Cancelar ]  [ Salvar Usuário ] │
+└────────────────────────────────────────────────────────────────┘
+
+CORES SUGERIDAS (Tailwind CSS):
+  - Primary: blue-600
+  - Success: green-600
+  - Warning: orange-500
+  - Danger: red-600
+  - Gray: gray-500
+
+================================================================================
+11. TRATAMENTO DE ERROS
+================================================================================
+
+MENSAGENS AMIGÁVEIS PARA O USUÁRIO:
+
+Backend Error                           → Frontend Message
+-----------------------------------------------------------
+"Já existe um usuário com este telefone" → "Este telefone já está cadastrado"
+"Usuário não encontrado"                 → "Usuário não encontrado"
+"Credenciais inválidas"                  → "Token expirado, faça login novamente"
+"Network Error"                          → "Erro de conexão. Verifique sua internet"
+"500 Internal Server Error"              → "Erro no servidor. Tente novamente"
+
+TIPOS DE NOTIFICAÇÃO (Toast):
+
+// Sucesso
+showToast('Usuário criado com sucesso!', 'success');
+
+// Erro
+showToast('Erro ao salvar usuário', 'error');
+
+// Aviso
+showToast('Preencha todos os campos obrigatórios', 'warning');
+
+// Info
+showToast('Carregando dados...', 'info');
+
+TRATAMENTO DE ERROS NO SERVICE:
+
+try {
+  const response = await api.post('/api/v1/admin/usuarios', data);
+  return response.data;
+} catch (error) {
+  if (error.response) {
+    // Erro do backend
+    throw new Error(error.response.data.message || 'Erro ao criar usuário');
+  } else if (error.request) {
+    // Sem resposta do servidor
+    throw new Error('Sem resposta do servidor. Verifique sua conexão.');
+  } else {
+    // Erro ao configurar requisição
+    throw new Error('Erro ao processar requisição');
+  }
+}
+
+VALIDAÇÃO ANTES DE ENVIAR:
+
+const submitForm = async () => {
+  // Validar localmente primeiro
+  if (!validateForm()) {
+    showToast('Por favor, corrija os erros no formulário', 'error');
+    return;
+  }
+  
+  // Enviar para backend
+  try {
+    await usuarioStore.createUsuario(form);
+    showToast('Usuário criado com sucesso!', 'success');
+    router.push({ name: 'Usuarios' });
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+};
+
+================================================================================
+12. TESTES E VALIDAÇÃO
+================================================================================
+
+CHECKLIST DE TESTES:
+
+CRIAÇÃO DE USUÁRIO:
+  [ ] Criar usuário com todos os campos válidos
+  [ ] Tentar criar usuário com telefone duplicado (deve falhar)
+  [ ] Tentar criar usuário sem nome (deve validar)
+  [ ] Tentar criar usuário sem telefone (deve validar)
+  [ ] Tentar criar usuário com senha < 6 caracteres (deve validar)
+  [ ] Senhas diferentes em "senha" e "confirmar senha" (deve validar)
+  [ ] Criar usuário com cada role (ADMIN, VENDEDOR, PORTEIRO, MONITORING)
+  [ ] Criar usuário ativo e inativo
+
+EDIÇÃO DE USUÁRIO:
+  [ ] Editar nome do usuário
+  [ ] Editar telefone (para um não usado)
+  [ ] Editar telefone (para um já usado - deve falhar)
+  [ ] Editar role do usuário
+  [ ] Alterar senha
+  [ ] Salvar SEM alterar senha (senha deve permanecer a mesma)
+  [ ] Editar status (ativo/inativo)
+
+LISTAGEM E FILTROS:
+  [ ] Ver todos os usuários
+  [ ] Filtrar por "Ativos"
+  [ ] Filtrar por "Inativos"
+  [ ] Filtrar por role específico
+  [ ] Buscar por nome parcial
+  [ ] Buscar por telefone parcial
+  [ ] Combinar filtros (ex: busca + role + status)
+  [ ] Limpar filtros
+
+ATIVAÇÃO/DESATIVAÇÃO:
+  [ ] Desativar usuário ativo
+  [ ] Reativar usuário inativo
+  [ ] Verificar que usuário inativo não pode fazer login
+  [ ] Badge de status muda corretamente
+
+PERMISSÕES:
+  [ ] Usuário não-ADMIN não consegue acessar /admin/usuarios
+  [ ] Token expirado redireciona para login
+  [ ] Todas as requisições incluem header Authorization
+
+RESPONSIVIDADE:
+  [ ] Testar em desktop (1920x1080)
+  [ ] Testar em tablet (768x1024)
+  [ ] Testar em mobile (375x667)
+  [ ] Tabela se adapta (scroll horizontal se necessário)
+  [ ] Formulários são usáveis em mobile
+
+PERFORMANCE:
+  [ ] Lista com 100+ usuários carrega em < 2s
+  [ ] Busca tem debounce (não busca a cada tecla)
+  [ ] Loading states aparecem durante requisições
+
+================================================================================
+13. EXEMPLOS DE CÓDIGO
+================================================================================
+
+EXEMPLO 1: SERVICE (API)
+
+// services/usuarioService.js
+import api from '@/utils/api'; // Axios instance com interceptors
+
+const BASE_URL = '/api/v1/admin/usuarios';
+
+export default {
+  async getAll() {
+    const response = await api.get(BASE_URL);
+    return response.data;
+  },
+  
+  async getActives() {
+    const response = await api.get(`${BASE_URL}/ativos`);
+    return response.data;
+  },
+  
+  async getById(id) {
+    const response = await api.get(`${BASE_URL}/${id}`);
+    return response.data;
+  },
+  
+  async create(data) {
+    const response = await api.post(BASE_URL, data);
+    return response.data;
+  },
+  
+  async update(id, data) {
+    // Remover senha se vazia
+    const payload = { ...data };
+    if (!payload.senha || payload.senha.trim() === '') {
+      delete payload.senha;
+    }
+    
+    const response = await api.put(`${BASE_URL}/${id}`, payload);
+    return response.data;
+  },
+  
+  async deactivate(id) {
+    await api.delete(`${BASE_URL}/${id}`);
+  },
+  
+  async activate(id) {
+    await api.patch(`${BASE_URL}/${id}/ativar`);
+  }
+};
+
+---
+
+EXEMPLO 2: COMPONENTE DE LISTAGEM
+
+<template>
+  <div class="usuarios-list">
+    <!-- Header -->
+    <div class="header">
+      <h1>Gestão de Usuários</h1>
+      <button @click="goToCreate" class="btn-primary">
+        + Novo Usuário
+      </button>
+    </div>
+    
+    <!-- Filtros -->
+    <UsuarioFilters
+      v-model:search="filters.search"
+      v-model:status="filters.status"
+      v-model:role="filters.role"
+      @clear="clearFilters"
+    />
+    
+    <!-- Loading -->
+    <div v-if="loading" class="loading">
+      <Spinner />
+      <p>Carregando usuários...</p>
+    </div>
+    
+    <!-- Tabela -->
+    <UsuarioTable
+      v-else
+      :usuarios="usuariosFiltrados"
+      @edit="goToEdit"
+      @view="goToView"
+      @deactivate="confirmDeactivate"
+      @activate="confirmActivate"
+    />
+    
+    <!-- Empty State -->
+    <div v-if="!loading && usuariosFiltrados.length === 0" class="empty">
+      <p>Nenhum usuário encontrado</p>
+    </div>
+    
+    <!-- Modal de Confirmação -->
+    <ConfirmModal
+      v-model="showConfirmModal"
+      :title="confirmTitle"
+      :message="confirmMessage"
+      @confirm="handleConfirm"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUsuarioStore } from '@/stores/usuarioStore';
+import { showToast } from '@/utils/toast';
+import UsuarioFilters from '@/components/admin/usuarios/UsuarioFilters.vue';
+import UsuarioTable from '@/components/admin/usuarios/UsuarioTable.vue';
+import ConfirmModal from '@/components/common/ConfirmModal.vue';
+
+const router = useRouter();
+const usuarioStore = useUsuarioStore();
+
+const loading = computed(() => usuarioStore.loading);
+const usuariosFiltrados = computed(() => usuarioStore.usuariosFiltrados);
+
+const filters = ref({
+  search: '',
+  status: 'todos',
+  role: null
+});
+
+const showConfirmModal = ref(false);
+const confirmAction = ref(null);
+const confirmUserId = ref(null);
+const confirmTitle = ref('');
+const confirmMessage = ref('');
+
+onMounted(async () => {
+  try {
+    await usuarioStore.fetchUsuarios();
+  } catch (error) {
+    showToast('Erro ao carregar usuários', 'error');
+  }
+});
+
+const goToCreate = () => {
+  router.push({ name: 'UsuarioCreate' });
+};
+
+const goToEdit = (usuario) => {
+  router.push({ name: 'UsuarioEdit', params: { id: usuario.id } });
+};
+
+const goToView = (usuario) => {
+  router.push({ name: 'UsuarioDetail', params: { id: usuario.id } });
+};
+
+const confirmDeactivate = (usuario) => {
+  confirmAction.value = 'deactivate';
+  confirmUserId.value = usuario.id;
+  confirmTitle.value = 'Desativar Usuário';
+  confirmMessage.value = `Tem certeza que deseja desativar o usuário ${usuario.nome}?`;
+  showConfirmModal.value = true;
+};
+
+const confirmActivate = (usuario) => {
+  confirmAction.value = 'activate';
+  confirmUserId.value = usuario.id;
+  confirmTitle.value = 'Reativar Usuário';
+  confirmMessage.value = `Tem certeza que deseja reativar o usuário ${usuario.nome}?`;
+  showConfirmModal.value = true;
+};
+
+const handleConfirm = async () => {
+  try {
+    if (confirmAction.value === 'deactivate') {
+      await usuarioStore.deactivateUsuario(confirmUserId.value);
+      showToast('Usuário desativado com sucesso', 'success');
+    } else if (confirmAction.value === 'activate') {
+      await usuarioStore.activateUsuario(confirmUserId.value);
+      showToast('Usuário reativado com sucesso', 'success');
+    }
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+  
+  showConfirmModal.value = false;
+};
+
+const clearFilters = () => {
+  filters.value = {
+    search: '',
+    status: 'todos',
+    role: null
+  };
+  usuarioStore.clearFilters();
+};
+</script>
+
+---
+
+EXEMPLO 3: FORMULÁRIO
+
+<template>
+  <div class="usuario-form">
+    <div class="header">
+      <button @click="goBack" class="btn-back">← Voltar</button>
+      <h1>{{ isEdit ? 'Editar Usuário' : 'Novo Usuário' }}</h1>
+    </div>
+    
+    <form @submit.prevent="submitForm">
+      <!-- Nome -->
+      <div class="form-group">
+        <label for="nome">Nome Completo *</label>
+        <input
+          id="nome"
+          v-model="form.nome"
+          type="text"
+          placeholder="Digite o nome completo"
+          :class="{ 'error': errors.nome }"
+        />
+        <span v-if="errors.nome" class="error-message">
+          {{ errors.nome }}
+        </span>
+      </div>
+      
+      <!-- Telefone -->
+      <div class="form-group">
+        <label for="telefone">Telefone *</label>
+        <input
+          id="telefone"
+          v-model="form.telefone"
+          type="tel"
+          placeholder="923456789"
+          :class="{ 'error': errors.telefone }"
+        />
+        <small>Formato: 923456789 ou +244923456789</small>
+        <span v-if="errors.telefone" class="error-message">
+          {{ errors.telefone }}
+        </span>
+      </div>
+      
+      <!-- Senha -->
+      <div class="form-group">
+        <label for="senha">
+          Senha {{ isEdit ? '(deixe em branco para manter a atual)' : '*' }}
+        </label>
+        <input
+          id="senha"
+          v-model="form.senha"
+          type="password"
+          placeholder="Digite a senha"
+          :class="{ 'error': errors.senha }"
+        />
+        <small>Mínimo 6 caracteres</small>
+        <span v-if="errors.senha" class="error-message">
+          {{ errors.senha }}
+        </span>
+      </div>
+      
+      <!-- Confirmar Senha -->
+      <div class="form-group" v-if="form.senha">
+        <label for="confirmacaoSenha">Confirmar Senha *</label>
+        <input
+          id="confirmacaoSenha"
+          v-model="form.confirmacaoSenha"
+          type="password"
+          placeholder="Confirme a senha"
+          :class="{ 'error': errors.confirmacaoSenha }"
+        />
+        <span v-if="errors.confirmacaoSenha" class="error-message">
+          {{ errors.confirmacaoSenha }}
+        </span>
+      </div>
+      
+      <!-- Role -->
+      <div class="form-group">
+        <label for="role">Perfil de Acesso *</label>
+        <select
+          id="role"
+          v-model="form.role"
+          :class="{ 'error': errors.role }"
+        >
+          <option value="">Selecione...</option>
+          <option value="ADMIN">Administrador (acesso total)</option>
+          <option value="VENDEDOR">Vendedor (vendas presenciais)</option>
+          <option value="PORTEIRO">Porteiro (validação de bilhetes)</option>
+          <option value="MONITORING">Monitoring (métricas e logs)</option>
+        </select>
+        <span v-if="errors.role" class="error-message">
+          {{ errors.role }}
+        </span>
+      </div>
+      
+      <!-- Status -->
+      <div class="form-group">
+        <label>Status</label>
+        <div class="radio-group">
+          <label>
+            <input
+              v-model="form.ativo"
+              type="radio"
+              :value="true"
+            />
+            Ativo
+          </label>
+          <label>
+            <input
+              v-model="form.ativo"
+              type="radio"
+              :value="false"
+            />
+            Inativo
+          </label>
+        </div>
+      </div>
+      
+      <!-- Botões -->
+      <div class="form-actions">
+        <button type="button" @click="goBack" class="btn-secondary">
+          Cancelar
+        </button>
+        <button type="submit" class="btn-primary" :disabled="loading">
+          {{ loading ? 'Salvando...' : 'Salvar Usuário' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useUsuarioStore } from '@/stores/usuarioStore';
+import { showToast } from '@/utils/toast';
+import {
+  validarNome,
+  validarTelefone,
+  validarSenha,
+  validarConfirmacaoSenha,
+  validarRole
+} from '@/utils/validators/usuarioValidators';
+
+const router = useRouter();
+const route = useRoute();
+const usuarioStore = useUsuarioStore();
+
+const isEdit = computed(() => !!route.params.id);
+const loading = ref(false);
+
+const form = ref({
+  nome: '',
+  telefone: '',
+  senha: '',
+  confirmacaoSenha: '',
+  role: '',
+  ativo: true
+});
+
+const errors = ref({
+  nome: null,
+  telefone: null,
+  senha: null,
+  confirmacaoSenha: null,
+  role: null
+});
+
+onMounted(async () => {
+  if (isEdit.value) {
+    try {
+      const usuario = await usuarioStore.fetchUsuarioById(route.params.id);
+      form.value = {
+        nome: usuario.nome,
+        telefone: usuario.telefone,
+        senha: '',
+        confirmacaoSenha: '',
+        role: usuario.role,
+        ativo: usuario.ativo
+      };
+    } catch (error) {
+      showToast('Erro ao carregar usuário', 'error');
+      goBack();
+    }
+  }
+});
+
+const validateForm = () => {
+  errors.value.nome = validarNome(form.value.nome);
+  errors.value.telefone = validarTelefone(form.value.telefone);
+  errors.value.senha = validarSenha(form.value.senha, isEdit.value);
+  
+  if (form.value.senha) {
+    errors.value.confirmacaoSenha = validarConfirmacaoSenha(
+      form.value.senha,
+      form.value.confirmacaoSenha
+    );
+  }
+  
+  errors.value.role = validarRole(form.value.role);
+  
+  return !Object.values(errors.value).some(error => error !== null);
+};
+
+const submitForm = async () => {
+  if (!validateForm()) {
+    showToast('Por favor, corrija os erros no formulário', 'error');
+    return;
+  }
+  
+  loading.value = true;
+  
+  try {
+    const payload = {
+      nome: form.value.nome,
+      telefone: form.value.telefone,
+      senha: form.value.senha || undefined, // Não enviar se vazio
+      role: form.value.role,
+      ativo: form.value.ativo
+    };
+    
+    if (isEdit.value) {
+      await usuarioStore.updateUsuario(route.params.id, payload);
+      showToast('Usuário atualizado com sucesso!', 'success');
+    } else {
+      await usuarioStore.createUsuario(payload);
+      showToast('Usuário criado com sucesso!', 'success');
+    }
+    
+    router.push({ name: 'Usuarios' });
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const goBack = () => {
+  router.push({ name: 'Usuarios' });
+};
+</script>
+
+================================================================================
+FIM DAS INSTRUÇÕES
+================================================================================
+
+DÚVIDAS OU SUPORTE:
+  Backend: José Edson Tomás - edson.tomas@gdse.ao
+  Documentação da API: https://api.arenaticket.gdse.ao/swagger-ui.html
+
+PRÓXIMOS PASSOS:
+  1. Revisar estas instruções com a equipe
+  2. Criar branch feature/gestao-usuarios
+  3. Implementar componentes um por um
+  4. Testar cada funcionalidade
+  5. Fazer code review
+  6. Merge para develop
+  7. Testar em staging
+  8. Deploy para produção
+
+Boa implementação! 🚀

@@ -1,7 +1,7 @@
 ================================================================================
 INSTRUÇÕES PARA EQUIPE DE FRONTEND - ATUALIZAÇÃO DO FLUXO DE CHECK-IN
 ArenaTicket - Página do Porteiro
-Data: 25 de dezembro de 2025
+Data: 25 de dezembro de 20252
 ================================================================================
 
 1. CONTEXTO DO PROBLEMA

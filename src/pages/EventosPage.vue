@@ -11,8 +11,6 @@ const currentId = ref<string | null>(null)
 const uploading = ref(false)
 const bannerFile = ref<File | null>(null)
 const togglingCheckIn = ref<string | null>(null)
-const toastMessage = ref('')
-const showToast = ref(false)
 
 const form = reactive({
   titulo: '',
@@ -111,22 +109,10 @@ async function toggleCheckIn(eventoId: string, abrir: boolean) {
     togglingCheckIn.value = eventoId
     const response = await store.toggleCheckIn(eventoId, { aberto: abrir })
     
-    // Mostrar toast de sucesso
-    toastMessage.value = response.mensagem || `Check-in ${abrir ? 'aberto' : 'fechado'} com sucesso!`
-    showToast.value = true
-    
-    // Ocultar toast após 3 segundos
-    setTimeout(() => {
-      showToast.value = false
-    }, 3000)
+    // Mostrar feedback de sucesso
+    alert(response.mensagem || `Check-in ${abrir ? 'aberto' : 'fechado'} com sucesso`)
   } catch (error: any) {
-    // Mostrar erro em toast
-    toastMessage.value = error.message || 'Erro ao alterar status do check-in'
-    showToast.value = true
-    
-    setTimeout(() => {
-      showToast.value = false
-    }, 4000)
+    alert(error.message || 'Erro ao alterar status do check-in')
   } finally {
     togglingCheckIn.value = null
   }
@@ -263,36 +249,5 @@ onMounted(() => store.listar())
         </form>
       </div>
     </div>
-
-    <!-- Toast de Notificação -->
-    <div 
-      v-if="showToast" 
-      class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-up"
-      style="min-width: 300px; max-width: 500px;"
-    >
-      <div class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-        <span>{{ toastMessage }}</span>
-      </div>
-    </div>
   </div>
 </template>
-
-<style scoped>
-@keyframes slide-up {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.animate-slide-up {
-  animation: slide-up 0.3s ease-out;
-}
-</style>

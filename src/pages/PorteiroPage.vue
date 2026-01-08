@@ -305,37 +305,19 @@
     <div v-if="mostrarModalErro" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @click.self="fecharModalErro">
       <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
         <div class="flex items-start gap-4">
-          <!-- Ícone dinâmico baseado no tipo de erro -->
-          <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center" :class="getErrorBgClass(errorType)">
-            <span class="text-2xl">{{ getErrorIcon(errorType) }}</span>
+          <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </div>
           <div class="flex-1">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2" :class="getErrorTextClass(errorType)">
-              {{ getErrorTitle(errorType) }}
-            </h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">❌ Erro</h3>
             <p class="text-sm text-gray-600">{{ mensagemErro }}</p>
-            
-            <!-- Dicas específicas por tipo de erro -->
-            <div v-if="errorType === 'Check-in Fechado'" class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              <strong>🔒 Dica:</strong> O check-in ainda não foi aberto. Entre em contato com o administrador do evento.
-            </div>
-            <div v-else-if="errorType === 'Bilhete Já Utilizado'" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-              <strong>ℹ️ Informação:</strong> Este bilhete já passou pelo check-in anteriormente.
-            </div>
-            <div v-else-if="errorType === 'Bilhete Expirado' || errorType === 'Bilhete Cancelado'" class="mt-3 p-3 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-              <strong>⚠️ Atenção:</strong> Direcione o cliente ao suporte ou bilheteria.
-            </div>
-            <div v-else-if="errorType === 'Evento Incorreto'" class="mt-3 p-3 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
-              <strong>🎫 Atenção:</strong> Verifique se o cliente está na entrada correta do evento.
-            </div>
-            <div v-else-if="errorType === 'Evento Encerrado'" class="mt-3 p-3 bg-gray-100 border border-gray-300 rounded text-xs text-gray-700">
-              <strong>⏱️ Evento finalizado:</strong> Não é mais possível realizar check-in.
-            </div>
           </div>
         </div>
         
         <div class="flex justify-end">
-          <button @click="fecharModalErro" class="px-4 py-2 rounded-lg font-medium" :class="getErrorButtonClass(errorType)">
+          <button @click="fecharModalErro" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
             Fechar
           </button>
         </div>
@@ -357,7 +339,6 @@ const bilhete = ref<Bilhete | null>(null)
 const loading = ref(false)
 const confirmando = ref(false)
 const error = ref<string | null>(null)
-const errorType = ref<string | null>(null) // Tipo de erro do backend
 const inputRef = ref<HTMLInputElement | null>(null)
 const mostrarModal = ref(false)
 
@@ -569,7 +550,6 @@ async function validar() {
   if (!codigo.value.trim()) return
   loading.value = true
   error.value = null
-  errorType.value = null
   bilhete.value = null
   bilheteValidado.value = null
   ticketValidado.value = false
@@ -585,8 +565,6 @@ async function validar() {
       showModalBilhete.value = true
     }
   } catch (e: any) {
-    // Capturar tipo de erro se disponível
-    errorType.value = e.type || null
     // Mostrar modal de erro
     mensagemErro.value = e.message || 'Erro ao validar bilhete. Tente novamente.'
     mostrarModalErro.value = true
@@ -614,12 +592,9 @@ async function confirmarCheckIn() {
     bilheteValidado.value = null
     ticketValidado.value = false
     error.value = null
-    errorType.value = null
     codigo.value = ''
     
   } catch (e: any) {
-    // Capturar tipo de erro se disponível
-    errorType.value = e.type || null
     // Mostrar modal de erro em vez de definir error.value
     mensagemErro.value = e.message || 'Erro ao fazer check-in. Tente novamente.'
     mostrarModalErro.value = true
@@ -647,7 +622,6 @@ function fecharModalSucesso() {
 function fecharModalErro() {
   mostrarModalErro.value = false
   mensagemErro.value = ''
-  errorType.value = null
 }
 
 function limpar() {
@@ -655,7 +629,6 @@ function limpar() {
   bilheteValidado.value = null
   ticketValidado.value = false
   error.value = null
-  errorType.value = null
   codigo.value = ''
   inputRef.value?.focus()
 }
@@ -704,82 +677,6 @@ function fecharModalBilhete() {
   showModalBilhete.value = false
   bilheteValidado.value = null
 }
-
-/**
- * Retorna o ícone apropriado baseado no tipo de erro
- */
-function getErrorIcon(type: string | null): string {
-  const icons: Record<string, string> = {
-    'Check-in Fechado': '🔒',
-    'Bilhete Já Utilizado': 'ℹ️',
-    'Bilhete Expirado': '⏱️',
-    'Bilhete Cancelado': '❌',
-    'Evento Encerrado': '🚧',
-    'Evento Incorreto': '🎫'
-  }
-  return icons[type || ''] || '⚠️'
-}
-
-/**
- * Retorna o título apropriado baseado no tipo de erro
- */
-function getErrorTitle(type: string | null): string {
-  const titles: Record<string, string> = {
-    'Check-in Fechado': 'Check-in Fechado',
-    'Bilhete Já Utilizado': 'Bilhete Já Utilizado',
-    'Bilhete Expirado': 'Bilhete Expirado',
-    'Bilhete Cancelado': 'Bilhete Cancelado',
-    'Evento Encerrado': 'Evento Encerrado',
-    'Evento Incorreto': 'Evento Incorreto'
-  }
-  return titles[type || ''] || 'Erro de Validação'
-}
-
-/**
- * Retorna a classe CSS para o fundo do ícone baseado no tipo de erro
- */
-function getErrorBgClass(type: string | null): string {
-  const classes: Record<string, string> = {
-    'Check-in Fechado': 'bg-yellow-100',
-    'Bilhete Já Utilizado': 'bg-blue-100',
-    'Bilhete Expirado': 'bg-gray-100',
-    'Bilhete Cancelado': 'bg-red-100',
-    'Evento Encerrado': 'bg-gray-100',
-    'Evento Incorreto': 'bg-orange-100'
-  }
-  return classes[type || ''] || 'bg-red-100'
-}
-
-/**
- * Retorna a classe CSS para o texto do título baseado no tipo de erro
- */
-function getErrorTextClass(type: string | null): string {
-  const classes: Record<string, string> = {
-    'Check-in Fechado': 'text-yellow-800',
-    'Bilhete Já Utilizado': 'text-blue-800',
-    'Bilhete Expirado': 'text-gray-800',
-    'Bilhete Cancelado': 'text-red-800',
-    'Evento Encerrado': 'text-gray-800',
-    'Evento Incorreto': 'text-orange-800'
-  }
-  return classes[type || ''] || 'text-red-800'
-}
-
-/**
- * Retorna a classe CSS para o botão baseado no tipo de erro
- */
-function getErrorButtonClass(type: string | null): string {
-  const classes: Record<string, string> = {
-    'Check-in Fechado': 'bg-yellow-600 text-white hover:bg-yellow-700',
-    'Bilhete Já Utilizado': 'bg-blue-600 text-white hover:bg-blue-700',
-    'Bilhete Expirado': 'bg-gray-600 text-white hover:bg-gray-700',
-    'Bilhete Cancelado': 'bg-red-600 text-white hover:bg-red-700',
-    'Evento Encerrado': 'bg-gray-600 text-white hover:bg-gray-700',
-    'Evento Incorreto': 'bg-orange-600 text-white hover:bg-orange-700'
-  }
-  return classes[type || ''] || 'bg-red-600 text-white hover:bg-red-700'
-}
-
 async function confirmarCheckin() {
   if (!bilheteValidado.value) return
   
