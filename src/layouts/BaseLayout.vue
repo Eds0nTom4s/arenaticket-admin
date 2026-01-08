@@ -17,6 +17,7 @@ const menuItems = computed(() => {
     { path: '/vendas', label: 'Vendas', roles: ['ADMIN', 'VENDEDOR'], icon: 'cash-register' },
     { path: '/porteiro', label: 'Porteiro', roles: ['ADMIN', 'PORTEIRO'], icon: 'door' },
     { path: '/bilhetes', label: 'Bilhetes', roles: ['ADMIN', 'PORTEIRO'], icon: 'qrcode' },
+    { path: '/admin/usuarios', label: 'Usuários', roles: ['ADMIN'], icon: 'users' },
     { path: '/auditoria', label: 'Auditoria', roles: ['ADMIN'], icon: 'shield' },
   ]
   
@@ -90,6 +91,9 @@ function closeSidebar() {
           </svg>
           <svg v-else-if="item.icon === 'qrcode'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+          </svg>
+          <svg v-else-if="item.icon === 'users'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
           <svg v-else-if="item.icon === 'shield'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
