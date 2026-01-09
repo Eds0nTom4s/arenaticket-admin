@@ -156,7 +156,8 @@ const handleConfirm = async () => {
       alert(`Usuário ${confirmUserName.value} reativado com sucesso`);
     }
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Erro ao processar ação');
+    const message = error instanceof Error ? error.message : 'Erro ao processar ação';
+    alert(message);
   }
 };
 

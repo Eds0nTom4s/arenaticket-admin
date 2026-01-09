@@ -163,9 +163,15 @@
                 <button
                   v-if="usuario.ativo"
                   type="button"
-                  class="text-red-600 hover:text-red-900"
-                  title="Desativar"
-                  @click="$emit('deactivate', usuario)"
+                  :disabled="!podeDesativar(usuario)"
+                  :class="[
+                    'transition-colors',
+                    podeDesativar(usuario)
+                      ? 'text-red-600 hover:text-red-900 cursor-pointer'
+                      : 'text-gray-300 cursor-not-allowed'
+                  ]"
+                  :title="tooltipDesativar(usuario)"
+                  @click="podeDesativar(usuario) && emit('deactivate', usuario)"
                 >
                   <svg
                     class="h-5 w-5"
@@ -186,7 +192,7 @@
                   type="button"
                   class="text-green-600 hover:text-green-900"
                   title="Reativar"
-                  @click="$emit('activate', usuario)"
+                  @click="emit('activate', usuario)"
                 >
                   <svg
                     class="h-5 w-5"
@@ -212,6 +218,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { Usuario } from '@/types/usuario';
 import UsuarioRoleBadge from './UsuarioRoleBadge.vue';
 import UsuarioStatusBadge from './UsuarioStatusBadge.vue';
@@ -228,11 +235,35 @@ interface Emits {
   (e: 'activate', usuario: Usuario): void;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   loading: false,
 });
 
-defineEmits<Emits>();
+const emit = defineEmits<Emits>();
+
+// Contar quantos ADMINs ativos existem
+const adminsAtivos = computed(() => {
+  return props.usuarios.filter((u) => u.role === 'ADMIN' && u.ativo).length;
+});
+
+// Verificar se pode desativar um usuário
+const podeDesativar = (usuario: Usuario): boolean => {
+  // Se não for ADMIN, pode desativar
+  if (usuario.role !== 'ADMIN') {
+    return true;
+  }
+  
+  // Se for ADMIN, só pode desativar se houver mais de 1 ADMIN ativo
+  return adminsAtivos.value > 1;
+};
+
+// Tooltip para botão de desativar
+const tooltipDesativar = (usuario: Usuario): string => {
+  if (!podeDesativar(usuario)) {
+    return 'Não é possível desativar o último administrador do sistema';
+  }
+  return 'Desativar';
+};
 
 const formatarTelefone = (telefone: string): string => {
   // Remover tudo que não é número

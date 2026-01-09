@@ -145,7 +145,7 @@
             </button>
 
             <button
-              v-if="usuario.ativo"
+              v-if="usuario.ativo && podeDesativar"
               type="button"
               class="inline-flex items-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
               @click="confirmDeactivate"
@@ -166,8 +166,29 @@
               Desativar Usuário
             </button>
 
+            <div
+              v-else-if="usuario.ativo && !podeDesativar"
+              class="inline-flex items-center rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
+              title="Não é possível desativar o último administrador do sistema"
+            >
+              <svg
+                class="-ml-1 mr-2 h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                />
+              </svg>
+              Desativar Usuário
+            </div>
+
             <button
-              v-else
+              v-else-if="!usuario.ativo"
               type="button"
               class="inline-flex items-center rounded-md border border-green-300 bg-white px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
               @click="confirmActivate"
@@ -212,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useUsuarioStore } from '@/store/usuarios';
 import BaseLayout from '@/layouts/BaseLayout.vue';
@@ -234,6 +255,15 @@ const confirmTitle = ref('');
 const confirmMessage = ref('');
 const confirmText = ref('Confirmar');
 const confirmVariant = ref<'danger' | 'primary'>('danger');
+
+// Verificar se pode desativar o usuário
+const podeDesativar = computed(() => {
+  if (!usuario.value || !usuario.value.ativo) {
+    return false;
+  }
+  
+  return usuarioStore.podeDesativarUsuario(usuario.value);
+});
 
 onMounted(async () => {
   const id = route.params.id as string;
@@ -311,7 +341,8 @@ const handleConfirm = async () => {
       alert('Usuário reativado com sucesso');
     }
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Erro ao processar ação');
+    const message = error instanceof Error ? error.message : 'Erro ao processar ação';
+    alert(message);
   }
 };
 </script>

@@ -96,6 +96,28 @@ export const useUsuarioStore = defineStore('usuario', {
     },
 
     /**
+     * Total de administradores ativos
+     */
+    totalAdminsAtivos: (state): number => {
+      return state.usuarios.filter((u) => u.role === 'ADMIN' && u.ativo).length;
+    },
+
+    /**
+     * Verifica se pode desativar um usuário ADMIN
+     * Não permite desativar se for o último ADMIN ativo
+     */
+    podeDesativarUsuario: (state) => (usuario: Usuario): boolean => {
+      // Se não for ADMIN, pode desativar
+      if (usuario.role !== 'ADMIN') {
+        return true;
+      }
+      
+      // Se for ADMIN, só pode desativar se houver mais de 1 ADMIN ativo
+      const adminsAtivos = state.usuarios.filter((u) => u.role === 'ADMIN' && u.ativo);
+      return adminsAtivos.length > 1;
+    },
+
+    /**
      * Retorna usuários agrupados por role
      */
     usuariosPorRole: (state) => {
@@ -213,10 +235,25 @@ export const useUsuarioStore = defineStore('usuario', {
       this.loading = true;
       this.error = null;
       try {
+        // Buscar o usuário que será desativado
+        const usuario = this.usuarios.find((u) => u.id === id);
+        
+        if (!usuario) {
+          throw new Error('Usuário não encontrado');
+        }
+        
+        // Validar regra de negócio: não pode desativar o último ADMIN
+        if (usuario.role === 'ADMIN' && usuario.ativo) {
+          const adminsAtivos = this.usuarios.filter((u) => u.role === 'ADMIN' && u.ativo);
+          
+          if (adminsAtivos.length <= 1) {
+            throw new Error('Não é possível desativar o último administrador do sistema');
+          }
+        }
+        
         await usuarioService.deactivate(id);
         
         // Atualizar status na lista local
-        const usuario = this.usuarios.find((u) => u.id === id);
         if (usuario) {
           usuario.ativo = false;
         }
