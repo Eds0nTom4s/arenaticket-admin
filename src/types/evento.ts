@@ -14,6 +14,7 @@ export interface Evento {
   checkinAberto?: boolean // Novo campo para controlar check-in
   createdAt: string // ISO 8601
   updatedAt?: string // ISO 8601
+  lotes?: LoteBilhete[] // Lista de lotes quando incluídos na resposta
 }
 
 export type EventoCreate = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'dataFim'>
@@ -112,14 +113,15 @@ export interface Bilhete {
 }
 
 // Tipos para Vendas Presenciais - Conforme IMPLEMENTACAO_VENDEDOR_RESUMO.txt
+// Atualizado para suportar venda anônima (ATUALIZACAO_FRONTEND_VENDA_ANONIMA.txt)
 export type MetodoPagamento = 'CASH' | 'TPA' | 'MULTICAIXA_EXPRESS' | 'REFERENCIA_ATM'
 
 export interface VendaPresencialPayload {
   eventoId: string
   loteId: string
   quantidade: number
-  compradorNome: string
-  compradorTelefone: string
+  compradorNome?: string | null // Opcional - venda anônima
+  compradorTelefone?: string | null // Opcional - venda anônima
   metodoPagamento: 'CASH' | 'TPA' // Apenas CASH e TPA para vendas presenciais
   vendedorId: string // ID do vendedor autenticado
   pontoVenda?: string // Identificação do ponto de venda (ex: "ESTADIO_BILHETERIA_1")

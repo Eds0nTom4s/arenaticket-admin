@@ -15,4 +15,7 @@ app.use(router)
 const auth = useAuthStore()
 auth.loadFromStorage()
 
+// Iniciar verificação periódica de expiração do token
+auth.startTokenExpirationCheck()
+
 app.mount('#app')

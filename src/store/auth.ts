@@ -18,8 +18,18 @@ interface LoginResponse {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<{ id: string; telefone: string; nome: string; role: string; ativo: boolean } | null>(null)
   const token = ref<string | null>(null)
+  const expiresAt = ref<number | null>(null)
 
-  const isAuthenticated = computed(() => !!user.value && !!token.value)
+  const isAuthenticated = computed(() => {
+    // Verificar se há token e se não expirou
+    if (!user.value || !token.value) return false
+    if (expiresAt.value && Date.now() >= expiresAt.value) {
+      console.warn('⚠️ Token expirado detectado no computed')
+      logout()
+      return false
+    }
+    return true
+  })
   const userName = computed(() => user.value?.nome ?? 'Administrador')
   const userRole = computed(() => user.value?.role ?? 'ADMIN')
   const authHeader = computed(() => (token.value ? { Authorization: `Bearer ${token.value}` } : {}))
@@ -55,9 +65,14 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = data.usuario
       token.value = data.token
       
+      // Calcular timestamp de expiração (expiresIn está em segundos)
+      const expirationTime = Date.now() + (data.expiresIn * 1000)
+      expiresAt.value = expirationTime
+      
       // Salvar no localStorage para persistência
       localStorage.setItem('auth_token', data.token)
       localStorage.setItem('auth_user', JSON.stringify(data.usuario))
+      localStorage.setItem('auth_expires', expirationTime.toString())
       
       return true
     } catch (error) {
@@ -69,28 +84,69 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     user.value = null
     token.value = null
+    expiresAt.value = null
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    localStorage.removeItem('auth_expires')
   }
 
   function loadFromStorage() {
     try {
       const savedToken = localStorage.getItem('auth_token')
       const savedUser = localStorage.getItem('auth_user')
+      const savedExpires = localStorage.getItem('auth_expires')
       
       if (savedToken && savedUser) {
+        // Verificar se o token não expirou
+        if (savedExpires) {
+          const expirationTime = parseInt(savedExpires, 10)
+          if (Date.now() >= expirationTime) {
+            console.warn('⚠️ Token expirado no localStorage - Limpando...')
+            logout()
+            return
+          }
+          expiresAt.value = expirationTime
+        }
+        
         token.value = savedToken
         user.value = JSON.parse(savedUser)
       }
     } catch (error) {
       console.error('Erro ao carregar dados de autenticação:', error)
       // Limpar localStorage corrompido
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
-      token.value = null
-      user.value = null
+      logout()
     }
   }
 
-  return { user, token, isAuthenticated, userName, userRole, authHeader, isAdmin, isPorteiro, isVendedor, canAccessRoute, login, logout, loadFromStorage }
+  // Verificação periódica de expiração (a cada minuto)
+  function startTokenExpirationCheck() {
+    setInterval(() => {
+      if (expiresAt.value && Date.now() >= expiresAt.value) {
+        console.warn('⚠️ Token expirado detectado na verificação periódica')
+        logout()
+        // Redirecionar para login se estiver em uma página autenticada
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+    }, 60000) // Verificar a cada 60 segundos
+  }
+
+  return { 
+    user, 
+    token, 
+    expiresAt,
+    isAuthenticated, 
+    userName, 
+    userRole, 
+    authHeader, 
+    isAdmin, 
+    isPorteiro, 
+    isVendedor, 
+    canAccessRoute, 
+    login, 
+    logout, 
+    loadFromStorage,
+    startTokenExpirationCheck
+  }
 })

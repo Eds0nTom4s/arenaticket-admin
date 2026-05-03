@@ -11,6 +11,7 @@ const AuditoriaPage = () => import('@/pages/AuditoriaPage.vue')
 const VisualizarBilhetePage = () => import('@/pages/VisualizarBilhetePage.vue')
 const PorteiroPage = () => import('@/pages/PorteiroPage.vue')
 const VendasPage = () => import('@/pages/VendasPage.vue')
+const RelatoriosVendasPage = () => import('@/pages/RelatoriosVendasPage.vue')
 
 // Gestão de Usuários
 const UsuariosListPage = () => import('@/pages/admin/usuarios/UsuariosListPage.vue')
@@ -66,7 +67,12 @@ const router = createRouter({
     { 
       path: '/vendas', 
       component: VendasPage, 
-      meta: { requiresAuth: true, allowedRoles: ['ADMIN', 'VENDEDOR'] } 
+      meta: { requiresAuth: true, allowedRoles: ['VENDEDOR'] } 
+    },
+    { 
+      path: '/relatorios/vendas', 
+      component: RelatoriosVendasPage, 
+      meta: { requiresAuth: true, allowedRoles: ['ADMIN'], title: 'Relatórios de Vendas' } 
     },
     // Gestão de Usuários
     { 

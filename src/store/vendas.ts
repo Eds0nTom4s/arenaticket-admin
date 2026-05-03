@@ -12,15 +12,28 @@ export const useVendasStore = defineStore('vendas', () => {
 
   /**
    * Listar eventos disponíveis para venda (apenas eventos abertos)
+   * Endpoint: GET /api/v1/eventos/disponiveis
+   * Requer: Authorization header com token de VENDEDOR
    */
   async function listarEventosDisponiveis() {
     loading.value = true
     error.value = null
     try {
-      const eventos = await api<Evento[]>('/admin/eventos')
+      console.log('🎪 Buscando eventos em /eventos/disponiveis...')
+      const eventos = await api<Evento[]>('/eventos/disponiveis')
+      console.log('✅ Eventos recebidos:', eventos.length)
+      console.log('📋 Eventos:', eventos)
+      
       // Filtrar apenas eventos abertos para venda
-      return eventos.filter(e => e.abertoParaVenda)
+      const eventosAbertos = eventos.filter(e => {
+        console.log(`📊 Evento "${e.titulo}": abertoParaVenda = ${e.abertoParaVenda}`)
+        return e.abertoParaVenda
+      })
+      
+      console.log('✅ Eventos abertos para venda:', eventosAbertos.length)
+      return eventosAbertos
     } catch (e: any) {
+      console.error('❌ Erro ao carregar eventos:', e)
       error.value = e.message || 'Erro ao carregar eventos'
       return []
     } finally {
@@ -30,20 +43,28 @@ export const useVendasStore = defineStore('vendas', () => {
 
   /**
    * Listar lotes disponíveis de um evento específico
+   * Endpoint: GET /api/v1/lotes/evento/{eventoId}
+   * Retorna apenas lotes ativos e disponíveis
    */
   async function listarLotesDisponiveis(eventoId: string) {
     loading.value = true
     error.value = null
     try {
-      const lotes = await api<LoteBilhete[]>(`/admin/lotes?eventoId=${eventoId}`)
-      // Filtrar apenas lotes com estoque disponível e dentro do período de venda
-      const agora = new Date()
-      return lotes.filter(lote => {
-        const inicioVenda = new Date(lote.inicioVenda)
-        const fimVenda = new Date(lote.fimVenda)
-        return lote.quantidadeDisponivel > 0 && agora >= inicioVenda && agora <= fimVenda
+      console.log('🎫 Buscando lotes do evento:', eventoId)
+      
+      // Buscar lotes diretamente
+      const lotes = await api<LoteBilhete[]>(`/lotes/evento/${eventoId}`)
+      console.log('✅ Lotes recebidos do backend:', lotes.length || 0)
+      
+      // Backend já retorna apenas lotes disponíveis (estoque > 0 e período válido)
+      // Adicionar log de debug para cada lote
+      lotes.forEach(lote => {
+        console.log(`📦 Lote: ${lote.nome} | Preço: ${lote.preco} Kz | Disponível: ${lote.quantidadeDisponivel}`)
       })
+      
+      return lotes
     } catch (e: any) {
+      console.error('❌ Erro ao carregar lotes:', e)
       error.value = e.message || 'Erro ao carregar lotes'
       return []
     } finally {
@@ -60,10 +81,32 @@ export const useVendasStore = defineStore('vendas', () => {
     loading.value = true
     error.value = null
     try {
+      // Preparar payload removendo campos nulos/vazios para vendas anônimas
+      const payloadLimpo: any = {
+        eventoId: payload.eventoId,
+        loteId: payload.loteId,
+        quantidade: payload.quantidade,
+        metodoPagamento: payload.metodoPagamento,
+        vendedorId: payload.vendedorId
+      }
+
+      // Adicionar campos opcionais apenas se tiverem valor
+      if (payload.compradorNome && payload.compradorNome.trim()) {
+        payloadLimpo.compradorNome = payload.compradorNome.trim()
+      }
+      if (payload.compradorTelefone && payload.compradorTelefone.trim()) {
+        payloadLimpo.compradorTelefone = payload.compradorTelefone.trim()
+      }
+      if (payload.pontoVenda) {
+        payloadLimpo.pontoVenda = payload.pontoVenda
+      }
+
+      console.log('📤 Enviando payload:', payloadLimpo)
+
       // Integração real com backend
       const response = await api<VendaPresencialResponse>('/vendas/pedidos', { 
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payloadLimpo)
       })
       
       ultimaVenda.value = response

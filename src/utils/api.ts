@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/auth'
+import router from '@/router'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
 
@@ -16,6 +17,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (!res.ok) {
+    // Token expirado ou inválido - fazer logout automático
+    if (res.status === 401) {
+      console.warn('⚠️ Token expirado ou inválido - Redirecionando para login...')
+      auth.logout()
+      router.push('/login')
+      throw new Error('Sessão expirada. Faça login novamente.')
+    }
+    
     const text = await res.text().catch(() => '')
     
     // Tentar parsear JSON do erro para obter mensagem detalhada

@@ -9,14 +9,20 @@ import type { Evento, LoteBilhete, MetodoPagamento } from '@/types/evento'
 const vendasStore = useVendasStore()
 const authStore = useAuthStore()
 
+// Detecção de dispositivo Android
+const userAgent = navigator.userAgent
+const isAndroid = /Android/i.test(userAgent)
+const acessoPermitido = ref(isAndroid)
+
 // Detecção de impressora SUNMI
 const impressoraSUNMI = ref(sunmiPrinter.isAvailable())
 const imprimindo = ref(false)
 
-// Debug: verificar detecção do SUNMI
+// Debug: verificar detecção do dispositivo e SUNMI
+console.log('📱 Android detectado?', isAndroid)
 console.log('🖨️ SUNMI detectado?', impressoraSUNMI.value)
 console.log('📱 window.sunmi existe?', typeof window.sunmi !== 'undefined')
-console.log('🔍 User Agent:', navigator.userAgent)
+console.log('🔍 User Agent:', userAgent)
 
 // Estado do formulário
 const eventoSelecionado = ref<Evento | null>(null)
@@ -34,6 +40,7 @@ const lotes = ref<LoteBilhete[]>([])
 // UI State
 const mostrarModalImpressao = ref(false)
 const processandoVenda = ref(false)
+const mostrarDadosComprador = ref(false)
 
 // Computed
 const valorUnitario = computed(() => loteSelecionado.value?.preco || 0)
@@ -44,8 +51,6 @@ const podeVender = computed(() => {
   return (
     eventoSelecionado.value &&
     loteSelecionado.value &&
-    compradorNome.value.trim().length > 0 &&
-    compradorTelefone.value.trim().length >= 9 &&
     quantidade.value > 0 &&
     quantidade.value <= quantidadeMaxima.value
   )
@@ -53,14 +58,21 @@ const podeVender = computed(() => {
 
 // Métodos
 async function carregarEventos() {
+  console.log('🔄 Iniciando carregamento de eventos...')
   eventos.value = await vendasStore.listarEventosDisponiveis()
+  console.log('✅ Eventos carregados na página:', eventos.value.length)
+  console.log('📋 Lista de eventos:', eventos.value)
+  
+  if (eventos.value.length === 0) {
+    console.warn('⚠️ Nenhum evento disponível para venda!')
+  }
 }
 
 async function carregarLotes() {
   if (eventoSelecionado.value) {
     const todosLotes = await vendasStore.listarLotesDisponiveis(eventoSelecionado.value.id)
     // Filtrar novamente no frontend como proteção adicional
-    lotes.value = todosLotes.filter(lote => lote.eventoId === eventoSelecionado.value!.id)
+    lotes.value = todosLotes.filter((lote: any) => lote.eventoId === eventoSelecionado.value!.id)
     loteSelecionado.value = null // Resetar lote ao trocar evento
     
     console.log(`Lotes carregados para evento ${eventoSelecionado.value.id}:`, lotes.value.length)
@@ -106,21 +118,26 @@ async function realizarVenda() {
       eventoId: eventoSelecionado.value.id,
       loteId: loteSelecionado.value.id,
       quantidade: quantidade.value,
-      compradorNome: compradorNome.value.trim(),
-      compradorTelefone: compradorTelefone.value.trim(),
+      compradorNome: compradorNome.value.trim() || null,
+      compradorTelefone: compradorTelefone.value.trim() || null,
       metodoPagamento: metodoPagamento.value as 'CASH' | 'TPA',
       vendedorId: authStore.user?.id || '', // ID do vendedor autenticado
       pontoVenda: pontoVenda.value
     })
     
-    // Imprimir automaticamente após venda bem-sucedida
+    // Venda realizada com sucesso
+    console.log('✅ Venda realizada com sucesso!')
+    
+    // Imprimir - se falhar, trava o fluxo e não limpa formulário
     await imprimirBilhetes()
     
-    // Limpar formulário e continuar
+    // Só limpa formulário se impressão foi bem-sucedida
     limparFormulario()
   } catch (error: any) {
-    // Exibir erro formatado do store
-    alert(vendasStore.error || 'Erro ao realizar venda')
+    // Exibir erro exatamente como recebido
+    console.error('❌ Erro:', error)
+    const mensagemErro = error?.message || vendasStore.error || 'Erro ao processar operação'
+    alert(mensagemErro)
   } finally {
     processandoVenda.value = false
   }
@@ -131,6 +148,7 @@ function limparFormulario() {
   compradorNome.value = ''
   compradorTelefone.value = ''
   quantidade.value = 1
+  mostrarDadosComprador.value = false
   
   // Recarregar lotes (estoque pode ter mudado)
   carregarLotes()
@@ -182,8 +200,8 @@ async function imprimirBilhetes() {
 
   // Se SUNMI disponível, usar impressora térmica
   if (impressoraSUNMI.value) {
+    imprimindo.value = true
     try {
-      imprimindo.value = true
       console.log('📄 Imprimindo via SUNMI...')
       await sunmiPrinter.imprimirLote(vendasStore.ultimaVenda.bilhetes)
       
@@ -196,8 +214,9 @@ async function imprimirBilhetes() {
       console.log(`✅ ${vendasStore.ultimaVenda.bilhetes.length} bilhete(s) impresso(s)`)
       alert(`✅ ${vendasStore.ultimaVenda.bilhetes.length} bilhete(s) impresso(s) com sucesso!`)
     } catch (error: any) {
-      console.error('❌ Erro ao imprimir:', error)
-      alert('❌ Erro na impressão: ' + error.message)
+      console.error('❌ Erro ao imprimir via SUNMI:', error)
+      // Lançar erro original sem modificar mensagem
+      throw error
     } finally {
       imprimindo.value = false
     }
@@ -209,6 +228,9 @@ async function imprimirBilhetes() {
   }
 }
 
+function recarregarPagina() {
+  window.location.reload()
+}
 
 
 // Watchers
@@ -224,7 +246,46 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="vendas-container">
+  <!-- Tela de bloqueio para dispositivos não Android -->
+  <div v-if="!acessoPermitido" class="acesso-bloqueado">
+    <div class="bloqueio-card">
+      <svg class="icon-bloqueio" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+      <h1>Acesso Restrito</h1>
+      <p class="bloqueio-mensagem">
+        Esta página de vendas POS só pode ser acessada através de dispositivos <strong>Android</strong> com impressora térmica integrada (Sunmi ou similar).
+      </p>
+      <div class="bloqueio-detalhes">
+        <h3>Dispositivo Detectado:</h3>
+        <p class="user-agent">{{ userAgent }}</p>
+        <div class="bloqueio-status">
+          <div class="status-item">
+            <svg class="icon-x" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span>Não é um dispositivo Android</span>
+          </div>
+        </div>
+      </div>
+      <div class="bloqueio-instrucoes">
+        <h3>Para usar o sistema de vendas:</h3>
+        <ol>
+          <li>Acesse este endereço através de um tablet ou smartphone <strong>Android</strong></li>
+          <li>Utilize preferencialmente dispositivos Sunmi com impressora térmica integrada</li>
+          <li>Faça login com suas credenciais de VENDEDOR</li>
+        </ol>
+      </div>
+      <button class="btn-terminar" @click="authStore.logout(); $router.push('/login')">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        Terminar Sessão
+      </button>
+    </div>
+  </div>
+
+  <div v-else class="vendas-container">
     <!-- Header com estatísticas -->
     <header class="vendas-header">
       <div class="vendedor-info">
@@ -248,15 +309,22 @@ onMounted(() => {
           </select>
         </div>
       </div>
-      <div class="estatisticas">
-        <div class="stat">
-          <div class="stat-label">Vendas Hoje</div>
-          <div class="stat-value">{{ vendasStore.vendasHoje }}</div>
+      <div class="header-actions">
+        <div class="estatisticas">
+          <div class="stat">
+            <div class="stat-label">Vendas Hoje</div>
+            <div class="stat-value">{{ vendasStore.vendasHoje }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Total Hoje</div>
+            <div class="stat-value">{{ formatCurrency(vendasStore.totalHoje) }}</div>
+          </div>
         </div>
-        <div class="stat">
-          <div class="stat-label">Total Hoje</div>
-          <div class="stat-value">{{ formatCurrency(vendasStore.totalHoje) }}</div>
-        </div>
+        <button class="btn-refresh" @click="recarregarPagina" title="Atualizar página">
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -334,31 +402,61 @@ onMounted(() => {
       <div class="card pedido-card">
         <h2 class="card-title">Dados do Comprador</h2>
         
-        <!-- Nome do Comprador -->
-        <div class="form-group">
-          <label for="nome" class="form-label">Nome Completo *</label>
-          <input 
-            id="nome"
-            v-model="compradorNome"
-            type="text"
-            class="form-input"
-            placeholder="Ex: João Silva"
+        <!-- Botão Toggle Adicionar Comprador -->
+        <div v-if="!mostrarDadosComprador" class="comprador-toggle">
+          <button 
+            class="btn-adicionar-comprador"
             :disabled="!loteSelecionado"
-          />
+            @click="mostrarDadosComprador = true"
+          >
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+            <span>Adicionar Dados do Comprador (Opcional)</span>
+          </button>
         </div>
 
-        <!-- Telefone -->
-        <div class="form-group">
-          <label for="telefone" class="form-label">Telefone *</label>
-          <input 
-            id="telefone"
-            v-model="compradorTelefone"
-            type="tel"
-            class="form-input"
-            placeholder="+244 900 000 000"
-            :disabled="!loteSelecionado"
-            @blur="formatarTelefone(compradorTelefone)"
-          />
+        <!-- Formulário de Dados (Encapsulado) -->
+        <div v-else class="comprador-form-wrapper">
+          <div class="comprador-form-header">
+            <h3 class="comprador-form-title">Dados do Comprador (Opcional)</h3>
+            <button 
+              class="btn-remover-comprador"
+              @click="mostrarDadosComprador = false; compradorNome = ''; compradorTelefone = ''"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <!-- Nome do Comprador -->
+          <div class="form-group">
+            <label for="nome" class="form-label">Nome Completo</label>
+            <input 
+              id="nome"
+              v-model="compradorNome"
+              type="text"
+              class="form-input"
+              placeholder="Ex: João Silva"
+            />
+          </div>
+
+          <!-- Telefone -->
+          <div class="form-group">
+            <label for="telefone" class="form-label">Telefone</label>
+            <input 
+              id="telefone"
+              v-model="compradorTelefone"
+              type="tel"
+              class="form-input"
+              placeholder="+244 900 000 000"
+              @blur="formatarTelefone(compradorTelefone)"
+            />
+            <small v-if="!compradorTelefone" class="field-hint">
+              ⚠️ SMS não será enviado sem telefone
+            </small>
+          </div>
         </div>
 
         <!-- Quantidade -->
@@ -488,6 +586,147 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Tela de Bloqueio de Acesso */
+.acesso-bloqueado {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+}
+
+.bloqueio-card {
+  background: white;
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.icon-bloqueio {
+  width: 80px;
+  height: 80px;
+  color: #ef4444;
+  margin: 0 auto 1.5rem;
+}
+
+.bloqueio-card h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.bloqueio-mensagem {
+  font-size: 1.1rem;
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.bloqueio-detalhes {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.bloqueio-detalhes h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
+.user-agent {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #6b7280;
+  background: white;
+  padding: 0.75rem;
+  border-radius: 6px;
+  word-break: break-all;
+  margin-bottom: 1rem;
+}
+
+.bloqueio-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ef4444;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.icon-x {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.bloqueio-instrucoes {
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.bloqueio-instrucoes h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 1rem;
+}
+
+.bloqueio-instrucoes ol {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #1e40af;
+  line-height: 1.8;
+}
+
+.bloqueio-instrucoes li {
+  margin-bottom: 0.5rem;
+}
+
+.btn-terminar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-terminar:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.btn-terminar .icon {
+  width: 20px;
+  height: 20px;
+}
+
 .vendas-container {
   min-height: 100vh;
   background: #f5f7fa;
@@ -505,6 +744,12 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
@@ -573,6 +818,36 @@ onMounted(() => {
   font-size: 1.5rem;
   font-weight: 700;
   color: #10b981;
+}
+
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.btn-refresh:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-refresh:active {
+  transform: scale(0.95);
+}
+
+.btn-refresh .icon {
+  width: 24px;
+  height: 24px;
 }
 
 /* Grid Principal */
@@ -1057,5 +1332,285 @@ onMounted(() => {
 .icon {
   width: 20px;
   height: 20px;
+}
+
+/* Botão Adicionar Comprador */
+.comprador-toggle {
+  margin-bottom: 1.5rem;
+}
+
+.btn-adicionar-comprador {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-adicionar-comprador:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-adicionar-comprador:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-adicionar-comprador .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.comprador-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+/* Formulário Encapsulado */
+.comprador-form-wrapper {
+  padding: 1.25rem;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+}
+
+.comprador-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.comprador-form-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.btn-remover-comprador {
+  width: 32px;
+  height: 32px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-remover-comprador:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.btn-remover-comprador svg {
+  width: 18px;
+  height: 18px;
+  color: #6b7280;
+}
+
+.btn-remover-comprador:hover svg {
+  color: #ef4444;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #f59e0b;
+}
+
+/* Modal de Confirmação */
+.modal-confirmacao {
+  max-width: 600px;
+}
+
+.confirmacao-detalhes {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.detalhe-grupo {
+  padding: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detalhe-grupo:last-child {
+  border-bottom: none;
+}
+
+.detalhe-grupo h4 {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detalhe-valor {
+  font-size: 1.1rem;
+  color: #1f2937;
+  font-weight: 600;
+  margin: 0;
+}
+
+.detalhe-valor.venda-anonima {
+  color: #f59e0b;
+  font-style: italic;
+}
+
+/* Alertas de impressora */
+.alert-impressora {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  color: #92400e;
+}
+
+.alert-impressora.alert-sucesso {
+  background: #d1fae5;
+  border-left-color: #10b981;
+  color: #065f46;
+}
+
+.alert-impressora .icon-warning,
+.alert-impressora .icon-success {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.alert-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.alert-content strong {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.alert-content span {
+  font-size: 0.9rem;
+}
+
+.alert-content small {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+.total-grupo {
+  margin-top: 1rem;
+  padding-top: 1.5rem !important;
+  border-top: 2px solid #d1d5db !important;
+  border-bottom: none !important;
+}
+
+.detalhe-valor-total {
+  font-size: 2rem;
+  color: #10b981;
+  font-weight: 700;
+  margin: 0;
+}
+
+.aviso-sms {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.modal-footer-confirmacao {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-cancelar {
+  flex: 1;
+  padding: 1rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #6b7280;
+}
+
+.btn-cancelar:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.btn-confirmar-venda {
+  flex: 2;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-confirmar-venda:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-confirmar-venda:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-confirmar-venda .icon {
+  width: 24px;
+  height: 24px;
 }
 </style>
